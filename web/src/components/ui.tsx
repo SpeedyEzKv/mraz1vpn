@@ -13,7 +13,7 @@ type ButtonProps = {
   block?: boolean;
   href?: string;
   children: ComponentChildren;
-} & Omit<JSX.HTMLAttributes<HTMLButtonElement>, 'size'> & { disabled?: boolean; type?: 'button' | 'submit' };
+} & Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, 'size' | 'type'> & { type?: 'button' | 'submit' };
 
 export function Button({ variant = 'primary', size = 'default', block, href, children, ...rest }: ButtonProps) {
   const cls = cx('btn', `btn--${variant}`, size === 'small' && 'btn--small', block && 'btn--block');
@@ -84,7 +84,7 @@ type FieldProps = {
   label: string;
   hint?: string;
   error?: string;
-} & JSX.HTMLAttributes<HTMLInputElement>;
+} & JSX.InputHTMLAttributes<HTMLInputElement>;
 
 export function Field({ label, hint, error, ...input }: FieldProps) {
   const id = useId();

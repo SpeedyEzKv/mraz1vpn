@@ -2,7 +2,7 @@
 FROM node:22-alpine AS build
 WORKDIR /web
 COPY package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+RUN npm ci --no-audit --no-fund
 COPY . .
 RUN npm run lint:tokens && npm run build
 
