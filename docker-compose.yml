@@ -63,6 +63,10 @@ services:
       XUI_URL: http://xui:2053/${XUI_BASE_PATH}/
       XUI_API_TOKEN: ${XUI_API_TOKEN}
       REALITY_TARGET: caddy:8443
+      YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID:-}
+      YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY:-}
+      CRYPTOBOT_TOKEN: ${CRYPTOBOT_TOKEN:-}
+      CRYPTOBOT_TESTNET: ${CRYPTOBOT_TESTNET:-false}
     depends_on:
       migrate:
         condition: service_completed_successfully

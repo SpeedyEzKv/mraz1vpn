@@ -38,10 +38,36 @@ export interface VpnKeysTable {
   panel_synced_at: Date | null;
 }
 
+export interface PaymentsTable {
+  id: Generated<number>;
+  user_id: number;
+  provider: 'yookassa' | 'cryptobot';
+  plan: string;
+  days: number;
+  amount_kop: number;
+  status: Generated<'pending' | 'succeeded' | 'canceled' | 'expired' | 'failed'>;
+  provider_payment_id: string | null;
+  pay_url: string | null;
+  created_at: Generated<Date>;
+  paid_at: Date | null;
+  applied_at: Date | null;
+}
+
+export interface RemindersTable {
+  id: Generated<number>;
+  user_id: number;
+  subscription_id: number;
+  kind: '3d' | '1d' | 'expired';
+  expires_at: Date;
+  sent_at: Generated<Date>;
+}
+
 export interface Database {
   users: UsersTable;
   subscriptions: SubscriptionsTable;
   vpn_keys: VpnKeysTable;
+  payments: PaymentsTable;
+  reminders: RemindersTable;
 }
 
 export type Db = Kysely<Database>;

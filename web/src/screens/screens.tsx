@@ -2,15 +2,31 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { Button, Card, CenterState, Field, List, ListItem, Screen, Sheet } from '../components/ui';
 import { appsFor, isAllowedDeepLink, openPageUrl, PLATFORM_LABEL, type VpnApp } from '../lib/apps';
-import { ApiError, getBotUsername, rotateKey, startTrial, type Me, type Vpn } from '../lib/api';
+import {
+  ApiError,
+  createPayment,
+  getBotUsername,
+  getPayment,
+  getVpn,
+  rotateKey,
+  startTrial,
+  type Catalog,
+  type Me,
+  type PaymentStatus,
+  type Plan,
+  type Provider,
+  type Vpn,
+} from '../lib/api';
 import { copyText } from '../lib/clipboard';
 import { formatDateTime, formatTimeLeft, plural } from '../lib/format';
-import { bindBackButton, getPlatform, haptic, openLink, type Platform } from '../lib/telegram';
+import { bindBackButton, getPlatform, haptic, openLink, openTelegramLink, type Platform } from '../lib/telegram';
 
 type VpnProps = { vpn: Vpn | null; onVpn: (v: Vpn) => void; onConnect: () => void };
 
 /* ---------- Подписка ---------- */
-export function SubscriptionScreen({ vpn, onVpn, onConnect }: VpnProps) {
+export function SubscriptionScreen({ vpn, onVpn, onConnect, catalog }: VpnProps & { catalog: Catalog | null }) {
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const closePay = useCallback(() => setPlan(null), []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,7 +70,7 @@ export function SubscriptionScreen({ vpn, onVpn, onConnect }: VpnProps) {
 
       {vpn.status === 'none' && !vpn.trialAvailable && (
         <Card title="Подписки нет">
-          <p class="text-secondary">Оплата появится в ближайшем обновлении.</p>
+          <p class="text-secondary">Выберите срок ниже — VPN заработает сразу после оплаты.</p>
         </Card>
       )}
 
@@ -81,11 +97,174 @@ export function SubscriptionScreen({ vpn, onVpn, onConnect }: VpnProps) {
       {vpn.status === 'expired' && (
         <Card title="Подписка закончилась">
           <p class="text-secondary">
-            {vpn.expiresAt && `Закончилась ${formatDateTime(vpn.expiresAt)}. `}Продление появится в ближайшем обновлении.
+            {vpn.expiresAt && `Закончилась ${formatDateTime(vpn.expiresAt)}. `}Продлите — ссылка на устройствах останется прежней.
           </p>
         </Card>
       )}
+
+      {catalog && catalog.providers.length > 0 && (
+        <List title={vpn.status === 'trial' || vpn.status === 'active' || vpn.status === 'expired' ? 'Продлить' : 'Купить подписку'}>
+          {catalog.plans.map((p) => (
+            <ListItem
+              key={p.id}
+              title={p.title}
+              subtitle={p.discountPct > 0 ? `≈ ${formatRub(p.perMonthRub)} в месяц, выгода ${p.discountPct}%` : undefined}
+              value={formatRub(p.priceRub)}
+              onClick={() => setPlan(p)}
+            />
+          ))}
+        </List>
+      )}
+
+      {catalog && (
+        <PaySheet plan={plan} providers={catalog.providers} onClose={closePay} onPaid={onVpn} />
+      )}
     </Screen>
+  );
+}
+
+const formatRub = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2).replace('.', ',')} ₽`;
+
+const PROVIDER_LABEL: Record<Provider, { title: string; hint: string }> = {
+  yookassa: { title: 'СБП или карта', hint: 'Оплата через ЮKassa' },
+  cryptobot: { title: 'Криптовалюта', hint: 'USDT, TON и другие через @CryptoBot' },
+};
+
+type PayState =
+  | { step: 'choose'; error?: string }
+  | { step: 'creating'; provider: Provider }
+  | { step: 'waiting'; id: number; provider: Provider; url: string; status: PaymentStatus }
+  | { step: 'done' };
+
+function openPayment(provider: Provider, url: string) {
+  // Счёт CryptoBot — ссылка t.me, открывается внутри Telegram; ЮKassa — в браузере.
+  if (provider === 'cryptobot') openTelegramLink(url);
+  else openLink(url);
+}
+
+/** Оплата тарифа: выбор способа → страница оплаты → ждём подтверждения от сервера. */
+function PaySheet({
+  plan,
+  providers,
+  onClose,
+  onPaid,
+}: {
+  plan: Plan | null;
+  providers: Provider[];
+  onClose: () => void;
+  onPaid: (v: Vpn) => void;
+}) {
+  const [state, setState] = useState<PayState>({ step: 'choose' });
+
+  useEffect(() => {
+    if (plan) setState({ step: 'choose' });
+  }, [plan]);
+
+  // Пока ждём оплату — спрашиваем сервер раз в 3 секунды и сразу при возврате в Telegram.
+  const waitingId = state.step === 'waiting' ? state.id : null;
+  useEffect(() => {
+    if (waitingId === null) return;
+    let stopped = false;
+    const startedAt = Date.now();
+    const check = async () => {
+      try {
+        const p = await getPayment(waitingId);
+        if (stopped) return;
+        if (p.status === 'succeeded') {
+          stopped = true;
+          haptic();
+          setState({ step: 'done' });
+          onPaid(await getVpn());
+        } else {
+          setState((s) => (s.step === 'waiting' && s.id === waitingId ? { ...s, status: p.status } : s));
+        }
+      } catch {
+        /* сеть моргнула — попробуем на следующем шаге */
+      }
+    };
+    const timer = setInterval(() => {
+      if (Date.now() - startedAt > 30 * 60_000) clearInterval(timer);
+      else void check();
+    }, 3000);
+    const onVisible = () => document.visibilityState === 'visible' && void check();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [waitingId, onPaid]);
+
+  const start = async (provider: Provider) => {
+    if (!plan) return;
+    setState({ step: 'creating', provider });
+    try {
+      const p = await createPayment(plan.id, provider);
+      setState({ step: 'waiting', id: p.id, provider, url: p.url, status: 'pending' });
+      openPayment(provider, p.url);
+    } catch (e) {
+      const tooMany = e instanceof ApiError && e.code === 'too_many';
+      setState({
+        step: 'choose',
+        error: tooMany ? 'Слишком много неоплаченных счетов. Попробуйте через час.' : 'Не получилось создать платёж. Попробуйте ещё раз или другой способ.',
+      });
+    }
+  };
+
+  if (!plan) return null;
+  const title = `${plan.title} — ${formatRub(plan.priceRub)}`;
+
+  return (
+    <Sheet open={!!plan} title={title} onClose={onClose}>
+      {(state.step === 'choose' || state.step === 'creating') && (
+        <>
+          <p class="text-secondary">Выберите способ оплаты. Дни добавятся к текущей подписке.</p>
+          {providers.map((pr, i) => (
+            <Button
+              key={pr}
+              block
+              variant={i === 0 ? 'primary' : 'secondary'}
+              disabled={state.step === 'creating'}
+              onClick={() => start(pr)}
+            >
+              {state.step === 'creating' && state.provider === pr ? 'Создаём счёт…' : PROVIDER_LABEL[pr].title}
+            </Button>
+          ))}
+          <p class="text-secondary text-s">{providers.map((pr) => `${PROVIDER_LABEL[pr].title}: ${PROVIDER_LABEL[pr].hint}.`).join(' ')}</p>
+          {state.step === 'choose' && state.error && <p>{state.error}</p>}
+        </>
+      )}
+
+      {state.step === 'waiting' && (
+        <>
+          {state.status === 'pending' ? (
+            <p class="text-secondary">
+              Ждём подтверждение оплаты. Обычно это несколько секунд после оплаты — экран обновится сам.
+            </p>
+          ) : (
+            <p>Платёж не прошёл или отменён. Можно попробовать снова.</p>
+          )}
+          {state.status === 'pending' ? (
+            <Button block variant="secondary" onClick={() => openPayment(state.provider, state.url)}>
+              Открыть оплату ещё раз
+            </Button>
+          ) : (
+            <Button block onClick={() => setState({ step: 'choose' })}>
+              Выбрать способ оплаты
+            </Button>
+          )}
+        </>
+      )}
+
+      {state.step === 'done' && (
+        <>
+          <p>Оплата прошла. Подписка продлена — VPN работает по той же ссылке на всех устройствах.</p>
+          <Button block onClick={onClose}>
+            Готово
+          </Button>
+        </>
+      )}
+    </Sheet>
   );
 }
 
@@ -311,6 +490,27 @@ export function HelpScreen({
         </Button>
       </Sheet>
     </Screen>
+  );
+}
+
+/* ---------- Страница /paid: сюда ЮKassa возвращает после оплаты (в браузере) ---------- */
+export function PaidScreen() {
+  const [bot, setBot] = useState<string | null>(null);
+  useEffect(() => {
+    getBotUsername().then(setBot);
+  }, []);
+  return (
+    <CenterState
+      title="Спасибо!"
+      text="Если оплата прошла, подписка продлится в течение минуты. Вернитесь в Telegram — бот пришлёт подтверждение."
+      actions={
+        bot && (
+          <a class="btn btn--primary btn--block" href={`https://t.me/${bot}`}>
+            Вернуться в Telegram
+          </a>
+        )
+      }
+    />
   );
 }
 

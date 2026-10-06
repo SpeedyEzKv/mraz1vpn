@@ -33,6 +33,11 @@ http://{$DOMAIN} {
 		reverse_proxy server:3000
 	}
 
+	# Уведомления об оплате от ЮKassa и CryptoBot.
+	handle /pay/* {
+		reverse_proxy server:3000
+	}
+
 	# Mini app: файлы со хэшем в имени кешируются навсегда, index.html — никогда.
 	handle /assets/* {
 		root * /srv/web

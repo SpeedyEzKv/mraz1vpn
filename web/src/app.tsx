@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { IconDevices, IconHelp, IconShield } from './components/icons';
-import { AuthError, getMe, getVpn, type Me, type Vpn } from './lib/api';
+import { AuthError, getCatalog, getMe, getVpn, type Catalog, type Me, type Vpn } from './lib/api';
 import { haptic, isInsideTelegram } from './lib/telegram';
 import {
   AuthFailedScreen,
@@ -10,6 +10,7 @@ import {
   HelpScreen,
   OfflineScreen,
   OpenAppScreen,
+  PaidScreen,
   OutsideTelegramScreen,
   SubscriptionScreen,
 } from './screens/screens';
@@ -26,6 +27,7 @@ const TABS: { id: Tab; label: string; Icon: typeof IconShield }[] = [
 export function App() {
   // Страница-переходник в VPN-приложение: открывается в браузере, не в Telegram.
   if (window.location.pathname === '/open') return <OpenAppScreen />;
+  if (window.location.pathname === '/paid') return <PaidScreen />;
   if (!isInsideTelegram()) return <OutsideTelegramScreen />;
   return <Cabinet />;
 }
@@ -36,6 +38,7 @@ function Cabinet() {
   const [status, setStatus] = useState<Status>('loading');
   const [me, setMe] = useState<Me | null>(null);
   const [vpn, setVpn] = useState<Vpn | null>(null);
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
 
   const load = useCallback(() => {
@@ -50,6 +53,10 @@ function Cabinet() {
   }, []);
 
   useEffect(load, [load]);
+  // Тарифы не критичны: если не загрузились, кабинет всё равно работает.
+  useEffect(() => {
+    getCatalog().then(setCatalog, () => setCatalog(null));
+  }, []);
 
   const closePage = useCallback(() => setPage(null), []);
   const openConnect = useCallback(() => setConnectOpen(true), []);
@@ -73,7 +80,7 @@ function Cabinet() {
         {page === 'components' ? (
           <ComponentsScreen onBack={closePage} />
         ) : tab === 'subscription' ? (
-          <SubscriptionScreen {...vpnProps} />
+          <SubscriptionScreen {...vpnProps} catalog={catalog} />
         ) : tab === 'devices' ? (
           <DevicesScreen {...vpnProps} />
         ) : (

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { APPS, appsFor, isAllowedDeepLink } from '../src/lib/apps.ts';
-import { formatTimeLeft, plural } from '../src/lib/format.ts';
+import { formatDateTime, formatTimeLeft, plural } from '../src/lib/format.ts';
 
 const ORIGIN = 'https://mraz1vpn.ru';
 const SUB = `${ORIGIN}/sub/${'a'.repeat(31)}B`;
@@ -49,4 +49,10 @@ test('остаток срока', () => {
   assert.equal(formatTimeLeft(at(5 * 3_600_000), now), '5 часов');
   assert.equal(formatTimeLeft(at(30 * 60_000), now), 'меньше часа');
   assert.equal(formatTimeLeft(at(-1), now), 'закончилась');
+});
+
+test('дата: год показываем, только если он не текущий', () => {
+  const now = new Date('2026-10-06T12:00:00');
+  assert.doesNotMatch(formatDateTime('2026-10-09T15:30:00', now), /2026/);
+  assert.match(formatDateTime('2027-01-07T18:49:00', now), /2027/);
 });

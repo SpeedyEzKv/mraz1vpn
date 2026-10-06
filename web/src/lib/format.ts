@@ -1,10 +1,18 @@
 // Даты и числа по-русски.
 
 const dateFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+const dateYearFmt = new Intl.DateTimeFormat('ru-RU', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
 
-/** «9 октября, 14:30» — в часовом поясе телефона. */
-export function formatDateTime(iso: string): string {
-  return dateFmt.format(new Date(iso));
+/** «9 октября в 14:30», для другого года — «7 января 2027 г. в 18:49». В часовом поясе телефона. */
+export function formatDateTime(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  return (d.getFullYear() === now.getFullYear() ? dateFmt : dateYearFmt).format(d);
 }
 
 export function plural(n: number, one: string, few: string, many: string): string {

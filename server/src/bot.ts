@@ -30,5 +30,12 @@ export function createBot(config: Config) {
     });
   }
 
-  return { bot, setupProfile };
+  /** Сообщение юзеру с кнопкой кабинета (напоминания, подтверждение оплаты). */
+  const notifier = {
+    async send(userId: number, text: string) {
+      await bot.api.sendMessage(userId, text, { reply_markup: cabinetKeyboard() });
+    },
+  };
+
+  return { bot, setupProfile, notifier };
 }

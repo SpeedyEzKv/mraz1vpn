@@ -7,6 +7,10 @@ import { buildApp } from './http.js';
 import { createVpnService } from './vpn/service.js';
 import { createTopologyCache } from './vpn/topology.js';
 import { createXuiClient } from './xui/client.js';
+import { createCryptoBot } from './payments/cryptobot.js';
+import { createPaymentService } from './payments/service.js';
+import { createYooKassa } from './payments/yookassa.js';
+import { sendReminders } from './reminders.js';
 
 const config = loadConfig();
 const dbs = createDatabases(config.appDatabaseUrl, config.systemDatabaseUrl);
@@ -33,12 +37,27 @@ const vpnService = createVpnService({
   log: { info: (o, m) => log.info(o, m), warn: (o, m) => log.warn(o, m), error: (o, m) => log.error(o, m) },
 });
 
+const { bot, setupProfile, notifier } = createBot(config);
+
+const paymentService = createPaymentService({
+  dbs,
+  yookassa:
+    config.yookassaShopId && config.yookassaSecretKey ? createYooKassa(config.yookassaShopId, config.yookassaSecretKey, config.yookassaApiUrl) : null,
+  cryptobot: config.cryptobotToken ? createCryptoBot(config.cryptobotToken, config.cryptobotTestnet, config.cryptobotApiUrl) : null,
+  domain: config.domain,
+  botUsername: config.botUsername,
+  deviceLimit: config.deviceLimit,
+  onSubscriptionChanged: (userId) => vpnService.syncUser(userId),
+  notifier,
+  log: { info: (o, m) => log.info(o, m), warn: (o, m) => log.warn(o, m), error: (o, m) => log.error(o, m) },
+});
+
 const app = buildApp(config, dbs, {
   logger: true,
   vpn: { service: vpnService, topology: topology.get, endpoint: { host: config.vpnHost, port: config.vpnPort } },
+  payments: { service: paymentService, cryptobotToken: config.cryptobotToken || null },
 });
 log = app.log;
-const { bot, setupProfile } = createBot(config);
 
 if (config.botMode === 'webhook') {
   // Telegram присылает secret_token в заголовке — чужие запросы на этот адрес отклоняются.
@@ -59,12 +78,21 @@ topology.get().then(
 const boss = new PgBoss({ connectionString: config.systemDatabaseUrl, schema: 'pgboss', createSchema: false, max: 2 });
 boss.on('error', (e) => app.log.error({ err: e.message }, 'pg-boss'));
 await boss.start();
-for (const q of ['vpn-reconcile', 'vpn-reconcile-full']) await boss.createQueue(q);
+for (const q of ['vpn-reconcile', 'vpn-reconcile-full', 'payments-poll', 'reminders']) await boss.createQueue(q);
 await boss.schedule('vpn-reconcile', '*/5 * * * *');
 await boss.schedule('vpn-reconcile-full', '17 */6 * * *');
 await boss.work('vpn-reconcile', async () => {
   const r = await vpnService.reconcile({ full: false });
   if (r.checked) app.log.info(r, 'vpn: сверка');
+});
+await boss.schedule('payments-poll', '* * * * *');
+await boss.schedule('reminders', '7 * * * *');
+await boss.work('payments-poll', async () => {
+  await paymentService.pollPending();
+});
+await boss.work('reminders', async () => {
+  const r = await sendReminders(dbs, notifier, app.log);
+  if (r.sent) app.log.info(r, 'reminders: отправлено');
 });
 await boss.work('vpn-reconcile-full', async () => {
   await topology.refresh();

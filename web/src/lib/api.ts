@@ -91,3 +91,32 @@ export async function getBotUsername(): Promise<string | null> {
     return null;
   }
 }
+
+export type Provider = 'yookassa' | 'cryptobot';
+
+export interface Plan {
+  id: string;
+  title: string;
+  days: number;
+  priceRub: number;
+  perMonthRub: number;
+  discountPct: number;
+}
+
+export interface Catalog {
+  providers: Provider[];
+  plans: Plan[];
+}
+
+export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'expired' | 'failed';
+
+export const getCatalog = () => api<Catalog>('/api/plans');
+
+export const createPayment = (plan: string, provider: Provider) =>
+  api<{ id: number; provider: Provider; url: string }>('/api/payments', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ plan, provider }),
+  });
+
+export const getPayment = (id: number) => api<{ id: number; status: PaymentStatus }>(`/api/payments/${id}`);

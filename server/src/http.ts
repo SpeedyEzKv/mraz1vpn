@@ -6,6 +6,8 @@ import type { Databases } from './db/db.js';
 import { buildVlessLinks, placeholderLink, subscriptionResponse, type Endpoint } from './vpn/links.js';
 import { findKeyByToken, VpnError, type VpnService } from './vpn/service.js';
 import type { VpnTopology } from './xui/setup.js';
+import { verifyCryptoBotSignature } from './payments/cryptobot.js';
+import { PaymentError, type PaymentService } from './payments/service.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -24,7 +26,16 @@ export interface VpnDeps {
   endpoint: Endpoint;
 }
 
-export function buildApp(config: AppConfig, dbs: Databases, opts: { logger?: boolean; vpn?: VpnDeps } = {}) {
+export interface PaymentDeps {
+  service: PaymentService;
+  cryptobotToken: string | null;
+}
+
+export function buildApp(
+  config: AppConfig,
+  dbs: Databases,
+  opts: { logger?: boolean; vpn?: VpnDeps; payments?: PaymentDeps } = {},
+) {
   const app = Fastify({
     logger: opts.logger ?? false,
     bodyLimit: 16 * 1024,
@@ -113,6 +124,36 @@ export function buildApp(config: AppConfig, dbs: Databases, opts: { logger?: boo
     });
   }
 
+  const payments = opts.payments;
+  if (payments) {
+    // Вебхук ЮKassa. Телу не доверяем: сервис перезапросит платёж у ЮKassa по id.
+    // Ошибка → 500, ЮKassa повторит уведомление позже.
+    app.post('/pay/yookassa', async (req, reply) => {
+      await payments.service.onYooKassaWebhook(req.body);
+      return reply.code(200).send({ ok: true });
+    });
+
+    // Вебхук CryptoBot: подпись считается по сырому телу, поэтому JSON здесь не разбираем заранее.
+    app.register(async (raw) => {
+      raw.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => done(null, body));
+      raw.post('/pay/cryptobot', async (req, reply) => {
+        const body = String(req.body ?? '');
+        if (!payments.cryptobotToken || !verifyCryptoBotSignature(payments.cryptobotToken, body, req.headers['crypto-pay-api-signature'])) {
+          req.log.warn('cryptobot: неверная подпись');
+          return reply.code(401).send({ error: 'bad_signature' });
+        }
+        let update: unknown;
+        try {
+          update = JSON.parse(body);
+        } catch {
+          return reply.code(400).send({ error: 'bad_json' });
+        }
+        await payments.service.onCryptoBotWebhook(update);
+        return reply.code(200).send({ ok: true });
+      });
+    });
+  }
+
   // Всё ниже — только с сессией. userId берётся из подписанной сессии, не из запроса.
   app.register(async (scope) => {
     scope.addHook('preHandler', requireSession);
@@ -163,6 +204,26 @@ export function buildApp(config: AppConfig, dbs: Databases, opts: { logger?: boo
           return vpnError(reply, e);
         }
         return vpn.service.getSummary(req.userId);
+      });
+    }
+
+    if (payments) {
+      scope.get('/api/plans', async () => payments.service.catalog());
+
+      scope.post<{ Body: { plan?: unknown; provider?: unknown } }>('/api/payments', async (req, reply) => {
+        try {
+          return await payments.service.create(req.userId, req.body?.plan, req.body?.provider);
+        } catch (e) {
+          if (!(e instanceof PaymentError)) throw e;
+          const code = e.code === 'too_many' ? 429 : e.code === 'provider_failed' ? 502 : 400;
+          return reply.code(code).send({ error: e.code });
+        }
+      });
+
+      scope.get<{ Params: { id: string } }>('/api/payments/:id', async (req, reply) => {
+        const row = await payments.service.getStatus(req.userId, Number(req.params.id));
+        if (!row) return reply.code(404).send({ error: 'not_found' });
+        return row;
       });
     }
 

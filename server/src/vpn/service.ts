@@ -37,7 +37,7 @@ export class VpnError extends Error {
 /** Логин клиента в панели. Один на юзера, не меняется при перевыпуске ключа. */
 export const panelEmail = (userId: number) => `tg${userId}`;
 
-const newSubToken = () => randomBytes(24).toString('base64url');
+export const newSubToken = () => randomBytes(24).toString('base64url');
 export const SUB_TOKEN_RE = /^[A-Za-z0-9_-]{32}$/;
 
 export interface Logger {
