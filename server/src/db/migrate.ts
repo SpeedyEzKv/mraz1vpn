@@ -21,10 +21,16 @@ async function ensureRole(client: pg.Client, name: string, password: string, byp
   const attrs = `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE ${bypassRls ? 'BYPASSRLS' : 'NOBYPASSRLS'}`;
   const pw = client.escapeLiteral(password);
   if (exists.rowCount === 0) {
-    await client.query(`CREATE ROLE ${name} ${attrs} PASSWORD ${pw}`);
-  } else {
-    await client.query(`ALTER ROLE ${name} ${attrs} PASSWORD ${pw}`);
+    try {
+      await client.query(`CREATE ROLE ${name} ${attrs} PASSWORD ${pw}`);
+      return;
+    } catch (e) {
+      // Роли общие на весь кластер Postgres: параллельный migrate мог создать её первым.
+      const code = (e as { code?: string }).code;
+      if (code !== '42710' && code !== '23505') throw e;
+    }
   }
+  await client.query(`ALTER ROLE ${name} ${attrs} PASSWORD ${pw}`);
 }
 
 export async function migrate(adminUrl: string, appPassword: string, systemPassword: string) {

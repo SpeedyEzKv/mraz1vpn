@@ -1,45 +1,287 @@
-// Экраны итерации 1: пустые, но по системе. Наполнение — в следующих итерациях.
+// Экраны кабинета: подписка, устройства, помощь; подключение приложения; служебные состояния.
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { Button, Card, CenterState, Field, List, ListItem, Screen, Sheet } from '../components/ui';
-import { getBotUsername, type Me } from '../lib/api';
-import { bindBackButton } from '../lib/telegram';
+import { appsFor, isAllowedDeepLink, openPageUrl, PLATFORM_LABEL, type VpnApp } from '../lib/apps';
+import { ApiError, getBotUsername, rotateKey, startTrial, type Me, type Vpn } from '../lib/api';
+import { copyText } from '../lib/clipboard';
+import { formatDateTime, formatTimeLeft, plural } from '../lib/format';
+import { bindBackButton, getPlatform, haptic, openLink, type Platform } from '../lib/telegram';
 
-export function SubscriptionScreen() {
+type VpnProps = { vpn: Vpn | null; onVpn: (v: Vpn) => void; onConnect: () => void };
+
+/* ---------- Подписка ---------- */
+export function SubscriptionScreen({ vpn, onVpn, onConnect }: VpnProps) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const trial = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const v = await startTrial();
+      haptic();
+      onVpn(v);
+      onConnect();
+    } catch (e) {
+      setError(e instanceof ApiError && e.code === 'trial_used' ? 'Пробный период уже был использован.' : 'Не получилось. Попробуйте ещё раз.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!vpn) {
+    // Данные ещё едут: оболочка уже на экране, карточка появится через мгновение.
+    return <Screen title="Подписка" />;
+  }
+
   return (
     <Screen title="Подписка">
-      <Card title="Подписки пока нет">
-        <p class="text-secondary">Здесь будет видно, до какого числа работает VPN и как его продлить.</p>
-      </Card>
+      {vpn.status === 'none' && vpn.trialAvailable && (
+        <Card
+          title="Попробуйте бесплатно"
+          actions={
+            <Button block disabled={busy} onClick={trial}>
+              {busy ? 'Включаем…' : 'Начать пробный период'}
+            </Button>
+          }
+        >
+          <p class="text-secondary">
+            {vpn.trialDays} {plural(vpn.trialDays, 'день', 'дня', 'дней')} без оплаты, до {vpn.deviceLimit} {plural(vpn.deviceLimit, 'устройства', 'устройств', 'устройств')} одновременно.
+          </p>
+          {error && <p>{error}</p>}
+        </Card>
+      )}
+
+      {vpn.status === 'none' && !vpn.trialAvailable && (
+        <Card title="Подписки нет">
+          <p class="text-secondary">Оплата появится в ближайшем обновлении.</p>
+        </Card>
+      )}
+
+      {(vpn.status === 'trial' || vpn.status === 'active') && vpn.expiresAt && (
+        <>
+          <Card
+            title={vpn.status === 'trial' ? 'Пробный период' : 'Подписка активна'}
+            actions={
+              <Button block onClick={onConnect}>
+                Подключить устройство
+              </Button>
+            }
+          >
+            <p class="text-secondary">VPN работает, пока подписка действует.</p>
+          </Card>
+          <List>
+            <ListItem title="Действует до" value={formatDateTime(vpn.expiresAt)} />
+            <ListItem title="Осталось" value={formatTimeLeft(vpn.expiresAt)} />
+            <ListItem title="Устройств одновременно" value={`до ${vpn.deviceLimit}`} />
+          </List>
+        </>
+      )}
+
+      {vpn.status === 'expired' && (
+        <Card title="Подписка закончилась">
+          <p class="text-secondary">
+            {vpn.expiresAt && `Закончилась ${formatDateTime(vpn.expiresAt)}. `}Продление появится в ближайшем обновлении.
+          </p>
+        </Card>
+      )}
     </Screen>
   );
 }
 
-export function DevicesScreen() {
+/* ---------- Устройства ---------- */
+export function DevicesScreen({ vpn, onVpn, onConnect }: VpnProps) {
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const close = useCallback(() => setConfirm(false), []);
+
+  const rotate = async () => {
+    setBusy(true);
+    setFailed(false);
+    try {
+      onVpn(await rotateKey());
+      haptic();
+      setDone(true);
+      setConfirm(false);
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!vpn) return <Screen title="Устройства" />;
+
+  if (!vpn.subscriptionUrl || vpn.status === 'none') {
+    return (
+      <Screen title="Устройства">
+        <Card title="Устройств пока нет">
+          <p class="text-secondary">Начните пробный период на вкладке «Подписка» — и подключите телефон или компьютер.</p>
+        </Card>
+      </Screen>
+    );
+  }
+
   return (
     <Screen title="Устройства">
-      <Card title="Устройств пока нет">
-        <p class="text-secondary">После подключения здесь будет видно, сколько устройств занято.</p>
+      <Card
+        title={`До ${vpn.deviceLimit} ${plural(vpn.deviceLimit, 'устройства', 'устройств', 'устройств')} одновременно`}
+        actions={
+          <Button block onClick={onConnect} disabled={vpn.status === 'expired'}>
+            Подключить устройство
+          </Button>
+        }
+      >
+        <p class="text-secondary">
+          Одна ссылка подписки на все ваши устройства. Если подключить больше, лишние будут отключаться.
+        </p>
       </Card>
+
+      <List title="Ссылка подписки">
+        <div class="list__item">
+          <div class="list__body">
+            <div class="list__subtitle text-break">{vpn.subscriptionUrl}</div>
+          </div>
+        </div>
+      </List>
+      <CopyButton text={vpn.subscriptionUrl} />
+      <Button variant="plain" block onClick={() => setConfirm(true)}>
+        Сбросить ссылку
+      </Button>
+      {done && <p class="text-secondary text-s">Новая ссылка готова. Добавьте её на свои устройства заново.</p>}
+
+      <Sheet open={confirm} title="Сбросить ссылку?" onClose={close}>
+        <p class="text-secondary">
+          Старая ссылка перестанет работать на всех устройствах — это нужно, если ссылку увидел кто-то чужой. Срок
+          подписки не изменится.
+        </p>
+        {failed && <p>Не получилось. Попробуйте ещё раз.</p>}
+        <Button block disabled={busy} onClick={rotate}>
+          {busy ? 'Сбрасываем…' : 'Сбросить'}
+        </Button>
+        <Button variant="secondary" block onClick={close}>
+          Отмена
+        </Button>
+      </Sheet>
     </Screen>
   );
 }
 
+function CopyButton({ text, label = 'Скопировать ссылку', variant = 'secondary' }: { text: string; label?: string; variant?: 'primary' | 'secondary' }) {
+  const [state, setState] = useState<'idle' | 'ok' | 'fail'>('idle');
+  useEffect(() => {
+    if (state === 'idle') return;
+    const t = setTimeout(() => setState('idle'), 2000);
+    return () => clearTimeout(t);
+  }, [state]);
+  return (
+    <Button
+      variant={variant}
+      block
+      onClick={async () => {
+        const ok = await copyText(text);
+        if (ok) haptic();
+        setState(ok ? 'ok' : 'fail');
+      }}
+    >
+      {state === 'ok' ? 'Скопировано' : state === 'fail' ? 'Не получилось — выделите вручную' : label}
+    </Button>
+  );
+}
+
+/* ---------- Подключение приложения ---------- */
+export function ConnectSheet({ open, onClose, subscriptionUrl }: { open: boolean; onClose: () => void; subscriptionUrl: string | null }) {
+  const [platform, setPlatform] = useState<Platform>(getPlatform);
+  const [app, setApp] = useState<VpnApp | null>(null);
+
+  useEffect(() => {
+    if (open) setApp(null);
+  }, [open]);
+
+  if (!subscriptionUrl) return null;
+  const apps = appsFor(platform);
+
+  return (
+    <Sheet open={open} title={app ? `Подключение: ${app.name}` : 'Подключить устройство'} onClose={onClose}>
+      {!app ? (
+        <>
+          <div class="row">
+            {(Object.keys(PLATFORM_LABEL) as Platform[]).map((p) => (
+              <Button key={p} size="small" variant={p === platform ? 'primary' : 'secondary'} onClick={() => setPlatform(p)}>
+                {PLATFORM_LABEL[p]}
+              </Button>
+            ))}
+          </div>
+          <List title="Выберите приложение">
+            {apps.map(({ app: a, recommended }) => (
+              <ListItem key={a.id} title={a.name} subtitle={recommended ? 'Рекомендуем' : undefined} onClick={() => setApp(a)} />
+            ))}
+          </List>
+        </>
+      ) : (
+        <>
+          <Card title={`1. Установите ${app.name}`}>
+            {(app.stores[platform] ?? []).map((s) => (
+              <Button key={s.url} variant="secondary" block onClick={() => openLink(s.url)}>
+                {s.label}
+              </Button>
+            ))}
+          </Card>
+          <Card title="2. Добавьте подписку">
+            <p class="text-secondary">Откроется {app.name} и сам добавит Mraz1VPN.</p>
+            <Button block onClick={() => openLink(openPageUrl(app.deepLink(subscriptionUrl)))}>
+              Добавить в {app.name}
+            </Button>
+            <CopyButton text={subscriptionUrl} label="Или скопировать ссылку" />
+          </Card>
+          <Card title="3. Включите VPN">
+            <p class="text-secondary">
+              В приложении нажмите кнопку подключения. Если не подключается, выберите сервер «Mraz1VPN запасной».
+            </p>
+          </Card>
+          <Button variant="plain" block onClick={() => setApp(null)}>
+            Другое приложение
+          </Button>
+        </>
+      )}
+    </Sheet>
+  );
+}
+
+/* ---------- Помощь ---------- */
 const HELP_ITEMS = [
   { id: 'connect', title: 'Как подключить' },
   { id: 'broken', title: 'Не работает VPN' },
   { id: 'support', title: 'Написать в поддержку' },
 ] as const;
 
-export function HelpScreen({ me, onOpenComponents }: { me: Me | null; onOpenComponents: () => void }) {
+export function HelpScreen({
+  me,
+  vpn,
+  onConnect,
+  onOpenComponents,
+}: {
+  me: Me | null;
+  vpn: Vpn | null;
+  onConnect: () => void;
+  onOpenComponents: () => void;
+}) {
   const [openId, setOpenId] = useState<string | null>(null);
   const close = useCallback(() => setOpenId(null), []);
   const item = HELP_ITEMS.find((i) => i.id === openId);
+
+  const select = (id: (typeof HELP_ITEMS)[number]['id']) => {
+    if (id === 'connect' && vpn?.subscriptionUrl && vpn.status !== 'expired') onConnect();
+    else setOpenId(id);
+  };
 
   return (
     <Screen title="Помощь">
       <List>
         {HELP_ITEMS.map((i) => (
-          <ListItem key={i.id} title={i.title} onClick={() => setOpenId(i.id)} />
+          <ListItem key={i.id} title={i.title} onClick={() => select(i.id)} />
         ))}
       </List>
 
@@ -52,12 +294,54 @@ export function HelpScreen({ me, onOpenComponents }: { me: Me | null; onOpenComp
       {me && <p class="text-secondary text-s">Ваш Telegram ID: {me.id}</p>}
 
       <Sheet open={!!item} title={item?.title} onClose={close}>
-        <p class="text-secondary">Этот раздел появится в ближайшем обновлении.</p>
+        {item?.id === 'connect' && (
+          <p class="text-secondary">Сначала включите подписку или пробный период на вкладке «Подписка» — затем здесь появится пошаговое подключение.</p>
+        )}
+        {item?.id === 'broken' && (
+          <ol class="steps text-secondary">
+            <li>Проверьте на вкладке «Подписка», что срок не закончился.</li>
+            <li>В приложении обновите подписку (кнопка обновления рядом с Mraz1VPN).</li>
+            <li>Выберите сервер «Mraz1VPN запасной» и подключитесь снова.</li>
+            <li>Выключите и включите VPN, а если не помогло — перезапустите приложение.</li>
+          </ol>
+        )}
+        {item?.id === 'support' && <p class="text-secondary">Этот раздел появится в ближайшем обновлении.</p>}
         <Button variant="secondary" block onClick={close}>
           Понятно
         </Button>
       </Sheet>
     </Screen>
+  );
+}
+
+/* ---------- Страница /open: открывает VPN-приложение из браузера ---------- */
+export function OpenAppScreen() {
+  const link = (() => {
+    try {
+      return decodeURIComponent(window.location.hash.slice(1));
+    } catch {
+      return '';
+    }
+  })();
+  const ok = isAllowedDeepLink(link, window.location.origin);
+
+  useEffect(() => {
+    if (ok) window.location.href = link;
+  }, [ok, link]);
+
+  if (!ok) {
+    return <CenterState title="Ссылка не работает" text="Вернитесь в Telegram и нажмите «Добавить» ещё раз." />;
+  }
+  return (
+    <CenterState
+      title="Открываем приложение"
+      text="Если ничего не произошло — установите приложение, затем нажмите кнопку ниже."
+      actions={
+        <a class="btn btn--primary btn--block" href={link}>
+          Открыть приложение
+        </a>
+      }
+    />
   );
 }
 

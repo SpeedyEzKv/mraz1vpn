@@ -1,14 +1,17 @@
 import { Bot, InlineKeyboard } from 'grammy';
 import type { Config } from './config.js';
+import { plural } from './text.js';
 
-const START_TEXT = [
-  'Mraz1VPN — VPN, который просто работает.',
-  '',
-  'В кабинете можно подключиться, посмотреть срок подписки и продлить её.',
-].join('\n');
+const days = (n: number) => `${n} ${plural(n, 'день', 'дня', 'дней')}`;
 
 export function createBot(config: Config) {
   const bot = new Bot(config.botToken);
+
+  const START_TEXT = [
+    'Mraz1VPN — VPN, который просто работает.',
+    '',
+    `Новым — ${days(config.trialDays)} бесплатно. В кабинете можно подключить телефон или компьютер и посмотреть срок подписки.`,
+  ].join('\n');
 
   const cabinetKeyboard = () => new InlineKeyboard().webApp('Открыть кабинет', config.webAppUrl);
 

@@ -12,6 +12,9 @@ export default defineConfig({
     assetsInlineLimit: 0,
   },
   server: {
-    proxy: { '/api': 'http://localhost:3000' },
+    proxy: { '/api': 'http://localhost:3000', '/sub': 'http://localhost:3000' },
+  },
+  preview: {
+    proxy: { '/api': 'http://localhost:3000', '/sub': 'http://localhost:3000' },
   },
 });

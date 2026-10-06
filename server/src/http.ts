@@ -3,6 +3,9 @@ import { verifyInitData } from './auth/initData.js';
 import { issueSession, readSession } from './auth/session.js';
 import type { Config } from './config.js';
 import type { Databases } from './db/db.js';
+import { buildVlessLinks, placeholderLink, subscriptionResponse, type Endpoint } from './vpn/links.js';
+import { findKeyByToken, VpnError, type VpnService } from './vpn/service.js';
+import type { VpnTopology } from './xui/setup.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -15,7 +18,13 @@ type AppConfig = Pick<
   'botToken' | 'sessionSecret' | 'sessionTtlSec' | 'initDataMaxAgeSec' | 'adminIds' | 'botUsername'
 >;
 
-export function buildApp(config: AppConfig, dbs: Databases, opts: { logger?: boolean } = {}) {
+export interface VpnDeps {
+  service: VpnService;
+  topology: () => Promise<VpnTopology>;
+  endpoint: Endpoint;
+}
+
+export function buildApp(config: AppConfig, dbs: Databases, opts: { logger?: boolean; vpn?: VpnDeps } = {}) {
   const app = Fastify({
     logger: opts.logger ?? false,
     bodyLimit: 16 * 1024,
@@ -77,6 +86,33 @@ export function buildApp(config: AppConfig, dbs: Databases, opts: { logger?: boo
     return { token: session.token, expiresAt: session.expiresAt };
   });
 
+  const vpn = opts.vpn;
+  const botUrl = `https://t.me/${config.botUsername}`;
+
+  // Ссылка подписки для VPN-приложений. Без сессии: доступ даёт сам токен (192 бита случайности).
+  // Отозванный или чужой токен — 404, без подсказок.
+  if (vpn) {
+    app.get<{ Params: { token: string } }>('/sub/:token', async (req, reply) => {
+      const key = await findKeyByToken(dbs, req.params.token);
+      if (!key || key.revoked_at) return reply.code(404).type('text/plain').send('not found');
+
+      const alive = key.expires_at !== null && key.expires_at > new Date();
+      let links: string[];
+      if (alive) {
+        try {
+          links = buildVlessLinks(await vpn.topology(), vpn.endpoint, key.xray_uuid);
+        } catch (e) {
+          req.log.error({ err: (e as Error).message }, 'sub: нет параметров VPN');
+          return reply.code(503).type('text/plain').send('temporarily unavailable');
+        }
+      } else {
+        links = [placeholderLink(`Подписка закончилась — продлите в @${config.botUsername}`)];
+      }
+      const r = subscriptionResponse({ links, expiresAt: key.expires_at, title: 'Mraz1VPN', supportUrl: botUrl });
+      return reply.headers(r.headers).send(r.body);
+    });
+  }
+
   // Всё ниже — только с сессией. userId берётся из подписанной сессии, не из запроса.
   app.register(async (scope) => {
     scope.addHook('preHandler', requireSession);
@@ -102,6 +138,33 @@ export function buildApp(config: AppConfig, dbs: Databases, opts: { logger?: boo
       );
       return { items: rows };
     });
+
+    if (vpn) {
+      const vpnError = (reply: FastifyReply, e: unknown) => {
+        if (e instanceof VpnError) return reply.code(409).send({ error: e.code });
+        throw e;
+      };
+
+      scope.get('/api/vpn', async (req) => vpn.service.getSummary(req.userId));
+
+      scope.post('/api/vpn/trial', async (req, reply) => {
+        try {
+          await vpn.service.startTrial(req.userId);
+        } catch (e) {
+          return vpnError(reply, e);
+        }
+        return vpn.service.getSummary(req.userId);
+      });
+
+      scope.post('/api/vpn/rotate', async (req, reply) => {
+        try {
+          await vpn.service.rotateKey(req.userId);
+        } catch (e) {
+          return vpnError(reply, e);
+        }
+        return vpn.service.getSummary(req.userId);
+      });
+    }
 
     scope.get('/api/keys', async (req) => {
       const rows = await dbs.asUser(req.userId, (tx) =>

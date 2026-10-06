@@ -13,6 +13,7 @@ export interface UsersTable {
   is_premium: Generated<boolean>;
   created_at: Generated<Date>;
   last_seen_at: Generated<Date>;
+  trial_used_at: Date | null;
 }
 
 export interface SubscriptionsTable {
@@ -22,6 +23,8 @@ export interface SubscriptionsTable {
   expires_at: Date | null;
   created_at: Generated<Date>;
   archived_at: Date | null;
+  device_limit: Generated<number>;
+  updated_at: Generated<Date>;
 }
 
 export interface VpnKeysTable {
@@ -31,6 +34,8 @@ export interface VpnKeysTable {
   sub_token: string;
   created_at: Generated<Date>;
   revoked_at: Date | null;
+  xray_uuid: Generated<string>;
+  panel_synced_at: Date | null;
 }
 
 export interface Database {

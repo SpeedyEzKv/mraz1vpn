@@ -1,3 +1,14 @@
+{
+	# Порт 443 занят Xray: HTTPS-трафик сайта он передаёт сюда, на 8443.
+	https_port 8443
+	# Автоматический редирект Caddy вёл бы на :8443 — делаем свой, на обычный 443.
+	auto_https disable_redirects
+}
+
+http://{$DOMAIN} {
+	redir https://{host}{uri} permanent
+}
+
 {$DOMAIN} {
 	encode zstd gzip
 
@@ -14,6 +25,11 @@
 	}
 
 	handle /bot/* {
+		reverse_proxy server:3000
+	}
+
+	# Ссылка подписки для VPN-приложений.
+	handle /sub/* {
 		reverse_proxy server:3000
 	}
 

@@ -20,6 +20,7 @@ interface TelegramWebApp {
   setBackgroundColor(color: string): void;
   setBottomBarColor?(color: string): void;
   openTelegramLink(url: string): void;
+  openLink(url: string): void;
   BackButton: BackButton;
   HapticFeedback?: { selectionChanged(): void };
 }
@@ -92,4 +93,24 @@ export function bindBackButton(cb: () => void): () => void {
 export function openTelegramLink(url: string) {
   if (webApp) webApp.openTelegramLink(url);
   else window.location.href = url;
+}
+
+/** Внешняя ссылка (магазин приложений, страница открытия VPN-приложения) — в браузере телефона. */
+export function openLink(url: string) {
+  if (webApp) webApp.openLink(url);
+  else window.open(url, '_blank', 'noopener');
+}
+
+export type Platform = 'ios' | 'android' | 'desktop';
+
+export function getPlatform(): Platform {
+  const p = webApp?.platform ?? '';
+  if (p === 'ios') return 'ios';
+  if (p.startsWith('android')) return 'android';
+  if (p === 'macos' || p === 'tdesktop' || p === 'unigram') return 'desktop';
+  // Веб-версия Telegram или мост не загрузился — смотрим на браузер.
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/i.test(ua)) return 'ios';
+  if (/Android/i.test(ua)) return 'android';
+  return 'desktop';
 }

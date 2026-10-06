@@ -5,6 +5,16 @@ import { getInitData } from './telegram';
 
 export class AuthError extends Error {}
 
+/** Ответ сервера с кодом ошибки (например, 409 trial_used). */
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string | null,
+  ) {
+    super(code ?? `HTTP ${status}`);
+  }
+}
+
 let session: { token: string; expiresAt: number } | null = null;
 let loginInFlight: Promise<void> | null = null;
 
@@ -39,7 +49,10 @@ export async function api<T>(path: string, init: RequestInit = {}, retried = fal
     return api<T>(path, init, true);
   }
   if (res.status === 401) throw new AuthError('auth');
-  if (!res.ok) throw new Error(`${path} ${res.status}`);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new ApiError(res.status, body?.error ?? null);
+  }
   return res.json() as Promise<T>;
 }
 
@@ -52,6 +65,22 @@ export interface Me {
 }
 
 export const getMe = () => api<Me>('/api/me');
+
+export type VpnStatus = 'none' | 'trial' | 'active' | 'expired';
+
+export interface Vpn {
+  status: VpnStatus;
+  expiresAt: string | null;
+  trialAvailable: boolean;
+  trialDays: number;
+  deviceLimit: number;
+  subscriptionUrl: string | null;
+}
+
+export const getVpn = () => api<Vpn>('/api/vpn');
+// POST без тела: сервер ничего не ждёт, userId берётся из сессии.
+export const startTrial = () => api<Vpn>('/api/vpn/trial', { method: 'POST' });
+export const rotateKey = () => api<Vpn>('/api/vpn/rotate', { method: 'POST' });
 
 export async function getBotUsername(): Promise<string | null> {
   try {

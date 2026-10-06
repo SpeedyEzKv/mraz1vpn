@@ -26,25 +26,45 @@ function parseIds(raw: string): Set<number> {
   );
 }
 
+function int(name: string, fallback: number, min: number, max: number): number {
+  const n = Number(optional(name, String(fallback)));
+  if (!Number.isInteger(n) || n < min || n > max) throw new Error(`${name}: ожидается целое от ${min} до ${max}`);
+  return n;
+}
+
 export function loadConfig() {
+  const domain = required('DOMAIN');
   const sessionSecret = required('SESSION_SECRET');
   if (sessionSecret.length < 32) throw new Error('SESSION_SECRET должен быть не короче 32 символов');
 
   return {
     port: Number(optional('PORT', '3000')),
-    domain: required('DOMAIN'),
+    domain,
     botToken: required('BOT_TOKEN'),
     botUsername: required('BOT_USERNAME').replace(/^@/, ''),
     // polling — для локальной разработки, webhook — на сервере
     botMode: optional('BOT_MODE', 'webhook') as 'webhook' | 'polling',
     botWebhookSecret: required('BOT_WEBHOOK_SECRET'),
-    webAppUrl: optional('WEBAPP_URL', `https://${required('DOMAIN')}/`),
+    webAppUrl: optional('WEBAPP_URL', `https://${domain}/`),
     adminIds: parseIds(optional('ADMIN_IDS', '')),
     sessionSecret,
     sessionTtlSec: Number(optional('SESSION_TTL_SEC', '3600')),
     initDataMaxAgeSec: Number(optional('INITDATA_MAX_AGE_SEC', '86400')),
     appDatabaseUrl: required('APP_DATABASE_URL'),
     systemDatabaseUrl: required('SYSTEM_DATABASE_URL'),
+
+    // 3x-ui: адрес панели во внутренней сети (с секретным путём) и API-токен.
+    xuiUrl: required('XUI_URL'),
+    xuiApiToken: required('XUI_API_TOKEN'),
+    // Куда подключаются клиенты VPN и под какой домен маскируется Reality.
+    vpnHost: optional('VPN_HOST', domain),
+    vpnPort: int('VPN_PORT', 443, 1, 65535),
+    realityServerName: optional('REALITY_SERVER_NAME', domain),
+    // Куда Xray отдаёт соединения, не прошедшие Reality, — Caddy с сайтом и mini app.
+    realityTarget: optional('REALITY_TARGET', 'caddy:8443'),
+    xhttpPort: int('XHTTP_PORT', 10443, 1, 65535),
+    trialDays: int('TRIAL_DAYS', 3, 1, 30),
+    deviceLimit: int('DEVICE_LIMIT', 3, 1, 10),
   };
 }
 

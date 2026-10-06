@@ -60,12 +60,41 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       APP_DATABASE_URL: postgres://mraz_app:${APP_DB_PASSWORD}@db:5432/mraz1vpn
       SYSTEM_DATABASE_URL: postgres://mraz_system:${SYSTEM_DB_PASSWORD}@db:5432/mraz1vpn
+      XUI_URL: http://xui:2053/${XUI_BASE_PATH}/
+      XUI_API_TOKEN: ${XUI_API_TOKEN}
+      REALITY_TARGET: caddy:8443
     depends_on:
       migrate:
         condition: service_completed_successfully
+      xui:
+        condition: service_started
     mem_limit: 384m
     logging: *logging
 
+  # Xray (VLESS Reality) + панель 3x-ui. Порт 443 — у Xray: VPN-клиентов он обслуживает сам,
+  # всё остальное (браузер, Telegram) прозрачно передаёт в Caddy:8443.
+  # Панель наружу не открыта: только 127.0.0.1 сервера, заходить через SSH-туннель (см. README).
+  xui:
+    image: ghcr.io/mhsanaei/3x-ui:v3.9.0
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Moscow
+      # Лимит устройств (limitIp) банит лишние IP через fail2ban — нужны NET_ADMIN и NET_RAW.
+      XUI_ENABLE_FAIL2BAN: "true"
+      XUI_MEMORY_LIMIT: "300"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    ports:
+      - "443:443"
+      - "127.0.0.1:2053:2053"
+    volumes:
+      - xui_db:/etc/x-ui
+    mem_limit: 384m
+    logging: *logging
+
+  # Сайт и mini app. Слушает 8443 внутри сети Docker (сюда Xray отдаёт не-VPN трафик)
+  # и 80 снаружи — для сертификата Let's Encrypt и редиректа на https.
   caddy:
     build: ./web
     restart: unless-stopped
@@ -73,7 +102,6 @@ services:
       DOMAIN: ${DOMAIN}
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -85,5 +113,6 @@ services:
 
 volumes:
   pgdata:
+  xui_db:
   caddy_data:
   caddy_config:

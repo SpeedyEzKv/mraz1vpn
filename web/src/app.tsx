@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { IconDevices, IconHelp, IconShield } from './components/icons';
-import { AuthError, getMe, type Me } from './lib/api';
+import { AuthError, getMe, getVpn, type Me, type Vpn } from './lib/api';
 import { haptic, isInsideTelegram } from './lib/telegram';
 import {
   AuthFailedScreen,
   ComponentsScreen,
+  ConnectSheet,
   DevicesScreen,
   HelpScreen,
   OfflineScreen,
+  OpenAppScreen,
   OutsideTelegramScreen,
   SubscriptionScreen,
 } from './screens/screens';
@@ -22,6 +24,8 @@ const TABS: { id: Tab; label: string; Icon: typeof IconShield }[] = [
 ];
 
 export function App() {
+  // Страница-переходник в VPN-приложение: открывается в браузере, не в Telegram.
+  if (window.location.pathname === '/open') return <OpenAppScreen />;
   if (!isInsideTelegram()) return <OutsideTelegramScreen />;
   return <Cabinet />;
 }
@@ -31,12 +35,15 @@ function Cabinet() {
   const [page, setPage] = useState<'components' | null>(null);
   const [status, setStatus] = useState<Status>('loading');
   const [me, setMe] = useState<Me | null>(null);
+  const [vpn, setVpn] = useState<Vpn | null>(null);
+  const [connectOpen, setConnectOpen] = useState(false);
 
   const load = useCallback(() => {
     setStatus('loading');
-    getMe()
-      .then((m) => {
+    Promise.all([getMe(), getVpn()])
+      .then(([m, v]) => {
         setMe(m);
+        setVpn(v);
         setStatus('ready');
       })
       .catch((e) => setStatus(e instanceof AuthError ? 'auth_failed' : 'offline'));
@@ -45,6 +52,8 @@ function Cabinet() {
   useEffect(load, [load]);
 
   const closePage = useCallback(() => setPage(null), []);
+  const openConnect = useCallback(() => setConnectOpen(true), []);
+  const closeConnect = useCallback(() => setConnectOpen(false), []);
 
   if (status === 'auth_failed') return <AuthFailedScreen onRetry={load} />;
   if (status === 'offline') return <OfflineScreen onRetry={load} />;
@@ -55,6 +64,8 @@ function Cabinet() {
     setTab(t);
   };
 
+  const vpnProps = { vpn, onVpn: setVpn, onConnect: openConnect };
+
   // Оболочка рисуется сразу, данные подставляются по мере прихода — без экрана логина и без спиннеров.
   return (
     <div class="shell">
@@ -62,11 +73,11 @@ function Cabinet() {
         {page === 'components' ? (
           <ComponentsScreen onBack={closePage} />
         ) : tab === 'subscription' ? (
-          <SubscriptionScreen />
+          <SubscriptionScreen {...vpnProps} />
         ) : tab === 'devices' ? (
-          <DevicesScreen />
+          <DevicesScreen {...vpnProps} />
         ) : (
-          <HelpScreen me={me} onOpenComponents={() => setPage('components')} />
+          <HelpScreen me={me} vpn={vpn} onConnect={openConnect} onOpenComponents={() => setPage('components')} />
         )}
       </main>
 
@@ -84,6 +95,8 @@ function Cabinet() {
           </button>
         ))}
       </nav>
+
+      <ConnectSheet open={connectOpen} onClose={closeConnect} subscriptionUrl={vpn?.subscriptionUrl ?? null} />
     </div>
   );
 }
