@@ -1,0 +1,89 @@
+# Всё приложение: docker compose up -d --build
+# Секреты — только в .env рядом с этим файлом (в git не попадает).
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: mraz1vpn
+    # Настройки под сервер с 2 ГБ памяти.
+    command: >
+      postgres
+      -c shared_buffers=128MB
+      -c effective_cache_size=384MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=32MB
+      -c max_connections=30
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mraz1vpn"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+    logging: *logging
+
+  # Одноразовый: создаёт роли и применяет миграции. Только у него есть пароль администратора БД.
+  migrate:
+    build: ./server
+    command: ["node", "dist/db/migrate.js"]
+    environment:
+      ADMIN_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/mraz1vpn
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+      SYSTEM_DB_PASSWORD: ${SYSTEM_DB_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    logging: *logging
+
+  server:
+    build: ./server
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+      BOT_TOKEN: ${BOT_TOKEN}
+      BOT_USERNAME: ${BOT_USERNAME}
+      BOT_MODE: webhook
+      BOT_WEBHOOK_SECRET: ${BOT_WEBHOOK_SECRET}
+      ADMIN_IDS: ${ADMIN_IDS}
+      SESSION_SECRET: ${SESSION_SECRET}
+      APP_DATABASE_URL: postgres://mraz_app:${APP_DB_PASSWORD}@db:5432/mraz1vpn
+      SYSTEM_DATABASE_URL: postgres://mraz_system:${SYSTEM_DB_PASSWORD}@db:5432/mraz1vpn
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    mem_limit: 384m
+    logging: *logging
+
+  caddy:
+    build: ./web
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - server
+    mem_limit: 128m
+    logging: *logging
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
