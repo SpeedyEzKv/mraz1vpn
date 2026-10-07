@@ -16,6 +16,9 @@ import {
 } from './screens/screens';
 
 type Tab = 'subscription' | 'devices' | 'help';
+
+/** Экран, который просили открыть кнопкой из бота: ?screen=plans|connect|trial. Читается один раз. */
+const requestedScreen = new URLSearchParams(window.location.search).get('screen');
 type Status = 'loading' | 'ready' | 'auth_failed' | 'offline';
 
 const TABS: { id: Tab; label: string; Icon: typeof IconShield }[] = [
@@ -53,6 +56,18 @@ function Cabinet() {
   }, []);
 
   useEffect(load, [load]);
+  // Кнопки бота: «Как подключить» открывает подключение, «Продлить» — прокручивает к тарифам.
+  const [handled, setHandled] = useState(false);
+  useEffect(() => {
+    if (handled || status !== 'ready' || !vpn) return;
+    if (requestedScreen === 'connect' && vpn.subscriptionUrl && vpn.status !== 'expired') setConnectOpen(true);
+    setHandled(true);
+  }, [handled, status, vpn]);
+  useEffect(() => {
+    if (requestedScreen !== 'plans' || !catalog) return;
+    requestAnimationFrame(() => document.getElementById('plans')?.scrollIntoView({ block: 'start' }));
+  }, [catalog]);
+
   // Тарифы не критичны: если не загрузились, кабинет всё равно работает.
   useEffect(() => {
     getCatalog().then(setCatalog, () => setCatalog(null));

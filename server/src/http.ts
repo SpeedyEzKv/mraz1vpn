@@ -18,7 +18,7 @@ declare module 'fastify' {
 type AppConfig = Pick<
   Config,
   'botToken' | 'sessionSecret' | 'sessionTtlSec' | 'initDataMaxAgeSec' | 'adminIds' | 'botUsername'
->;
+> & { supportUsername?: string };
 
 export interface VpnDeps {
   service: VpnService;
@@ -57,7 +57,10 @@ export function buildApp(
   app.get('/api/health', async () => ({ ok: true }));
 
   // Публичная конфигурация для клиента. Здесь только то, что и так видно всем.
-  app.get('/api/public-config', async () => ({ botUsername: config.botUsername }));
+  app.get('/api/public-config', async () => ({
+    botUsername: config.botUsername,
+    supportUsername: config.supportUsername || null,
+  }));
 
   // Вход: initData → проверка подписи → upsert юзера → сессия.
   app.post<{ Body: { initData?: unknown } }>('/api/auth/telegram', async (req, reply) => {

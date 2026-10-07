@@ -57,6 +57,7 @@ services:
       BOT_MODE: webhook
       BOT_WEBHOOK_SECRET: ${BOT_WEBHOOK_SECRET}
       ADMIN_IDS: ${ADMIN_IDS}
+      SUPPORT_USERNAME: ${SUPPORT_USERNAME:-}
       SESSION_SECRET: ${SESSION_SECRET}
       APP_DATABASE_URL: postgres://mraz_app:${APP_DB_PASSWORD}@db:5432/mraz1vpn
       SYSTEM_DATABASE_URL: postgres://mraz_system:${SYSTEM_DB_PASSWORD}@db:5432/mraz1vpn

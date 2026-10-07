@@ -38,7 +38,10 @@ const vpnService = createVpnService({
   log: { info: (o, m) => log.info(o, m), warn: (o, m) => log.warn(o, m), error: (o, m) => log.error(o, m) },
 });
 
-const { bot, setupProfile, notifier } = createBot(config);
+const { bot, setupProfile, notifier } = createBot(config, {
+  getSummary: (userId) => vpnService.getSummary(userId),
+  providers: () => paymentService.catalog().providers,
+});
 
 const paymentService = createPaymentService({
   dbs,

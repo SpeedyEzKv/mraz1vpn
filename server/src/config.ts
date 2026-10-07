@@ -47,6 +47,8 @@ export function loadConfig() {
     botWebhookSecret: required('BOT_WEBHOOK_SECRET'),
     webAppUrl: optional('WEBAPP_URL', `https://${domain}/`),
     adminIds: parseIds(optional('ADMIN_IDS', '')),
+    // Telegram-username техподдержки (без @). Пусто — кнопки поддержки нет.
+    supportUsername: optional('SUPPORT_USERNAME', '').replace(/^@/, ''),
     sessionSecret,
     sessionTtlSec: Number(optional('SESSION_TTL_SEC', '3600')),
     initDataMaxAgeSec: Number(optional('INITDATA_MAX_AGE_SEC', '86400')),

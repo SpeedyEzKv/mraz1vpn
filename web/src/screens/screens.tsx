@@ -7,6 +7,7 @@ import {
   createPayment,
   getBotUsername,
   getPayment,
+  getPublicConfig,
   getVpn,
   rotateKey,
   startTrial,
@@ -103,6 +104,7 @@ export function SubscriptionScreen({ vpn, onVpn, onConnect, catalog }: VpnProps 
       )}
 
       {catalog && catalog.providers.length > 0 && (
+        <div id="plans">
         <List title={vpn.status === 'trial' || vpn.status === 'active' || vpn.status === 'expired' ? 'Продлить' : 'Купить подписку'}>
           {catalog.plans.map((p) => (
             <ListItem
@@ -114,6 +116,7 @@ export function SubscriptionScreen({ vpn, onVpn, onConnect, catalog }: VpnProps 
             />
           ))}
         </List>
+        </div>
       )}
 
       {catalog && (
@@ -448,11 +451,17 @@ export function HelpScreen({
   onOpenComponents: () => void;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const [support, setSupport] = useState<string | null>(null);
   const close = useCallback(() => setOpenId(null), []);
   const item = HELP_ITEMS.find((i) => i.id === openId);
 
+  useEffect(() => {
+    getPublicConfig().then((c) => setSupport(c.supportUsername));
+  }, []);
+
   const select = (id: (typeof HELP_ITEMS)[number]['id']) => {
     if (id === 'connect' && vpn?.subscriptionUrl && vpn.status !== 'expired') onConnect();
+    else if (id === 'support' && support) openTelegramLink(`https://t.me/${support}`);
     else setOpenId(id);
   };
 
@@ -484,7 +493,7 @@ export function HelpScreen({
             <li>Выключите и включите VPN, а если не помогло — перезапустите приложение.</li>
           </ol>
         )}
-        {item?.id === 'support' && <p class="text-secondary">Этот раздел появится в ближайшем обновлении.</p>}
+        {item?.id === 'support' && <p class="text-secondary">Поддержка скоро появится. Пока напишите боту — мы увидим.</p>}
         <Button variant="secondary" block onClick={close}>
           Понятно
         </Button>

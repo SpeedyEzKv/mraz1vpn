@@ -82,15 +82,26 @@ export const getVpn = () => api<Vpn>('/api/vpn');
 export const startTrial = () => api<Vpn>('/api/vpn/trial', { method: 'POST' });
 export const rotateKey = () => api<Vpn>('/api/vpn/rotate', { method: 'POST' });
 
-export async function getBotUsername(): Promise<string | null> {
-  try {
-    const res = await fetch('/api/public-config');
-    if (!res.ok) return null;
-    return (await res.json()).botUsername ?? null;
-  } catch {
-    return null;
-  }
+export interface PublicConfig {
+  botUsername: string | null;
+  supportUsername: string | null;
 }
+
+let publicConfig: Promise<PublicConfig> | null = null;
+
+/** Открытые настройки (имя бота, поддержка). Без входа, запрашиваются один раз. */
+export function getPublicConfig(): Promise<PublicConfig> {
+  publicConfig ??= fetch('/api/public-config')
+    .then((r) => (r.ok ? r.json() : {}))
+    .then((j: Partial<PublicConfig>) => ({ botUsername: j.botUsername ?? null, supportUsername: j.supportUsername ?? null }))
+    .catch(() => {
+      publicConfig = null;
+      return { botUsername: null, supportUsername: null };
+    });
+  return publicConfig;
+}
+
+export const getBotUsername = () => getPublicConfig().then((c) => c.botUsername);
 
 export type Provider = 'yookassa' | 'cryptobot';
 

@@ -28,6 +28,9 @@ case "$BOT_TOKEN" in
   *) echo "Это не похоже на токен бота. Запустите скрипт ещё раз."; exit 1 ;;
 esac
 CRYPTOBOT_TOKEN=$(ask_secret 'Токен CryptoBot (Crypto Pay → API Token), Enter — пропустить: ')
+printf 'Ваш Telegram-username для кнопки «Техподдержка» (без @), Enter — пропустить: ' >&2
+read -r SUPPORT_USERNAME || SUPPORT_USERNAME=''
+SUPPORT_USERNAME=$(printf '%s' "$SUPPORT_USERNAME" | tr -d '@ ')
 YOOKASSA_SHOP_ID=''
 YOOKASSA_SECRET_KEY=''
 
@@ -43,6 +46,7 @@ sed \
   -e "s/^SERVER_IP=.*/SERVER_IP=$(esc "$SERVER_IP")/" \
   -e "s/^BOT_TOKEN=.*/BOT_TOKEN=$(esc "$BOT_TOKEN")/" \
   -e "s/^CRYPTOBOT_TOKEN=.*/CRYPTOBOT_TOKEN=$(esc "$CRYPTOBOT_TOKEN")/" \
+  -e "s/^SUPPORT_USERNAME=.*/SUPPORT_USERNAME=$(esc "$SUPPORT_USERNAME")/" \
   -e "s/^YOOKASSA_SHOP_ID=.*/YOOKASSA_SHOP_ID=$(esc "$YOOKASSA_SHOP_ID")/" \
   -e "s/^YOOKASSA_SECRET_KEY=.*/YOOKASSA_SECRET_KEY=$(esc "$YOOKASSA_SECRET_KEY")/" \
   -e "s/^BOT_WEBHOOK_SECRET=.*/BOT_WEBHOOK_SECRET=$(rand)/" \
