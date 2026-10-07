@@ -11,6 +11,7 @@ import { createCryptoBot } from './payments/cryptobot.js';
 import { createPaymentService } from './payments/service.js';
 import { createYooKassa } from './payments/yookassa.js';
 import { sendReminders } from './reminders.js';
+import { createReferrals } from './referrals.js';
 
 const config = loadConfig();
 const dbs = createDatabases(config.appDatabaseUrl, config.systemDatabaseUrl);
@@ -38,7 +39,10 @@ const vpnService = createVpnService({
   log: { info: (o, m) => log.info(o, m), warn: (o, m) => log.warn(o, m), error: (o, m) => log.error(o, m) },
 });
 
+const referrals = createReferrals({ dbs, botUsername: config.botUsername, bonusDays: config.referralBonusDays });
+
 const { bot, setupProfile, notifier } = createBot(config, {
+  registerReferral: config.referralBonusDays > 0 ? referrals.registerFromStart : undefined,
   getSummary: (userId) => vpnService.getSummary(userId),
   providers: () => paymentService.catalog().providers,
 });
@@ -51,6 +55,7 @@ const paymentService = createPaymentService({
   domain: config.domain,
   botUsername: config.botUsername,
   deviceLimit: config.deviceLimit,
+  referralBonusDays: config.referralBonusDays,
   onSubscriptionChanged: (userId) => vpnService.syncUser(userId),
   notifier,
   log: { info: (o, m) => log.info(o, m), warn: (o, m) => log.warn(o, m), error: (o, m) => log.error(o, m) },
@@ -60,6 +65,7 @@ const app = buildApp(config, dbs, {
   logger: true,
   vpn: { service: vpnService, topology: topology.get, endpoint: { host: config.vpnHost, port: config.vpnPort } },
   payments: { service: paymentService, cryptobotToken: config.cryptobotToken || null },
+  referrals: config.referralBonusDays > 0 ? referrals : undefined,
 });
 log = app.log;
 

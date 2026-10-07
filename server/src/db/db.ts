@@ -14,6 +14,8 @@ export interface UsersTable {
   created_at: Generated<Date>;
   last_seen_at: Generated<Date>;
   trial_used_at: Date | null;
+  ref_code: Generated<string | null>;
+  referred_by: Generated<number | null>;
 }
 
 export interface SubscriptionsTable {
@@ -62,12 +64,22 @@ export interface RemindersTable {
   sent_at: Generated<Date>;
 }
 
+export interface ReferralRewardsTable {
+  id: Generated<number>;
+  referrer_id: number;
+  referred_id: number;
+  payment_id: number;
+  days: number;
+  created_at: Generated<Date>;
+}
+
 export interface Database {
   users: UsersTable;
   subscriptions: SubscriptionsTable;
   vpn_keys: VpnKeysTable;
   payments: PaymentsTable;
   reminders: RemindersTable;
+  referral_rewards: ReferralRewardsTable;
 }
 
 export type Db = Kysely<Database>;

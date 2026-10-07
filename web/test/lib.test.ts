@@ -56,3 +56,11 @@ test('дата: год показываем, только если он не т�
   assert.doesNotMatch(formatDateTime('2026-10-09T15:30:00', now), /2026/);
   assert.match(formatDateTime('2027-01-07T18:49:00', now), /2027/);
 });
+
+test('daysLeft: вверх до суток, после окончания — 0', async () => {
+  const { daysLeft } = await import('../src/lib/format.ts');
+  const now = Date.parse('2026-10-08T12:00:00Z');
+  assert.equal(daysLeft('2026-10-11T11:59:00Z', now), 3);
+  assert.equal(daysLeft('2026-10-08T13:00:00Z', now), 1);
+  assert.equal(daysLeft('2026-10-08T11:00:00Z', now), 0);
+});

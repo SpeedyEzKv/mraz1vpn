@@ -84,6 +84,8 @@ export function createBot(
   deps: {
     getSummary?: (userId: number) => Promise<VpnSummary>;
     providers?: () => string[];
+    // /start ref_XXXX: привязать нового юзера к пригласившему.
+    registerReferral?: (user: { id: number; username?: string; first_name?: string; last_name?: string; language_code?: string }, payload: string) => Promise<boolean>;
     botInfo?: UserFromGetMe; // для тестов: без запроса getMe к Telegram
   } = {},
 ) {
@@ -101,6 +103,13 @@ export function createBot(
   }
 
   bot.command('start', async (ctx) => {
+    if (ctx.from && ctx.match && deps.registerReferral) {
+      try {
+        await deps.registerReferral(ctx.from, ctx.match);
+      } catch (e) {
+        console.error('start: реферал не записан', (e as Error).message);
+      }
+    }
     let vpn: VpnSummary | null = null;
     if (ctx.from && deps.getSummary) {
       try {

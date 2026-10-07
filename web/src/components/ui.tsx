@@ -2,7 +2,7 @@
 import type { ComponentChildren, JSX } from 'preact';
 import { useEffect, useId } from 'preact/hooks';
 import { bindBackButton } from '../lib/telegram';
-import { IconChevron, IconClose } from './icons';
+import { IconChevron, IconClose, Logo } from './icons';
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 
@@ -134,10 +134,11 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
 }
 
 /* ---------- Экран и состояния ---------- */
-export function Screen({ title, children }: { title: string; children?: ComponentChildren }) {
+export function Screen({ title, lead, children }: { title?: ComponentChildren; lead?: ComponentChildren; children?: ComponentChildren }) {
   return (
     <div class="screen">
-      <h1 class="screen__title">{title}</h1>
+      {title && <h1 class="screen__title">{title}</h1>}
+      {lead && <p class="screen__lead">{lead}</p>}
       {children}
     </div>
   );
@@ -146,6 +147,7 @@ export function Screen({ title, children }: { title: string; children?: Componen
 export function CenterState({ title, text, actions }: { title: string; text?: ComponentChildren; actions?: ComponentChildren }) {
   return (
     <div class="center-state">
+      <Logo size={64} />
       <h1 class="center-state__title">{title}</h1>
       {text && <p class="text-secondary">{text}</p>}
       {actions && <div class="center-state__actions">{actions}</div>}

@@ -1,32 +1,67 @@
 /*
- * Дизайн-токены Mraz1VPN. Единственное место, где разрешены значения цветов и шрифтов.
- * Проверка: npm run lint:tokens — падает, если цвет/шрифт/тень встречаются где-то ещё.
- * Монохром: фон, текст, вторичный текст, границы. Акцент — чёрный. Других цветов нет.
+ * Дизайн-токены Mraz1VPN. Единственное место, где разрешены цвета, градиенты и шрифты.
+ * Проверка: npm run lint:tokens — падает, если цвет/градиент/шрифт встречаются где-то ещё.
+ * Тема всегда тёмная. Фирменные цвета — как у знака на аватарке: бирюза → синий → фиолет.
  */
 :root {
-  /* Цвета */
-  --color-bg: #f6f6f4;
-  --color-text: #111111;
-  --color-text-secondary: #777777;
-  --color-border: #d9d9d9;
-  --color-accent: #111111;
-  --color-on-accent: #f6f6f4;
-  /* Затемнение под нижним шитом — тот же основной цвет текста с прозрачностью. */
-  --color-scrim: rgba(17, 17, 17, 0.32);
+  color-scheme: dark;
+
+  /* Поверхности */
+  --color-bg: #07090f;
+  --color-surface: #0e131d;
+  --color-surface-2: #151c2a;
+  --color-border: #1f2838;
+
+  /* Текст */
+  --color-text: #eef2f8;
+  --color-text-secondary: #8b94a7;
+
+  /* Фирменные цвета */
+  --color-brand-1: #33d1bf; /* бирюза */
+  --color-brand-2: #2f7de1; /* синий */
+  --color-brand-3: #7b45e0; /* фиолет */
+  --color-accent: #3fa9e8; /* одиночный акцент: активная вкладка, ссылки, фокус */
+  --color-on-accent: #ffffff;
+  --color-accent-soft: rgba(63, 169, 232, 0.14);
+
+  /* Состояния: бейдж статуса подписки */
+  --color-ok: #34d399;
+  --color-ok-soft: rgba(52, 211, 153, 0.14);
+  --color-warn: #f5b84a;
+  --color-warn-soft: rgba(245, 184, 74, 0.14);
+  --color-off: #f27979;
+  --color-off-soft: rgba(242, 121, 121, 0.14);
+
+  /* Затемнение под нижним шитом */
+  --color-scrim: rgba(0, 0, 0, 0.6);
+
+  /* Градиенты */
+  --gradient-brand: linear-gradient(120deg, var(--color-brand-1) 0%, var(--color-brand-2) 52%, var(--color-brand-3) 100%);
+  --gradient-hero:
+    radial-gradient(120% 90% at 0% 0%, rgba(51, 209, 191, 0.18) 0%, rgba(51, 209, 191, 0) 55%),
+    radial-gradient(120% 90% at 100% 100%, rgba(123, 69, 224, 0.22) 0%, rgba(123, 69, 224, 0) 60%),
+    var(--color-surface);
+  --gradient-hero-off:
+    radial-gradient(120% 90% at 100% 0%, rgba(242, 121, 121, 0.12) 0%, rgba(242, 121, 121, 0) 60%),
+    var(--color-surface);
+  --gradient-glow: radial-gradient(60% 60% at 50% 40%, rgba(47, 125, 225, 0.35) 0%, rgba(47, 125, 225, 0) 100%);
 
   /* Шрифт */
-  --font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
+  --font-weight-bold: 700;
 
+  --font-size-xs: 11px;
   --font-size-s: 13px;
   --font-size-m: 15px;
   --font-size-l: 17px;
   --font-size-xl: 22px;
   --font-size-xxl: 28px;
+  --font-size-stat: 30px;
 
-  --line-height-tight: 1.2;
+  --line-height-tight: 1.15;
   --line-height-normal: 1.4;
 
   /* Отступы (шаг 4px) */
@@ -41,18 +76,21 @@
   /* Линии и углы */
   --line-width: 1px;
   --line: var(--line-width) solid var(--color-border);
-  --radius-s: 8px;
-  --radius-m: 12px;
-  --radius-l: 16px;
+  --radius-s: 10px;
+  --radius-m: 16px;
+  --radius-l: 22px;
+  --radius-pill: 999px;
 
   /* Размеры элементов */
-  --control-height: 44px;
+  --control-height: 50px;
   --control-height-s: 36px;
-  --tabbar-height: 56px;
+  --tabbar-height: 60px;
+  --header-height: 52px;
   --icon-size: 22px;
-  --icon-stroke: 1.5;
+  --icon-stroke: 1.7;
+  --tile-size: 52px;
 
-  /* Движение: только функциональное (появление шита), без декоративной анимации. */
+  /* Движение: только функциональное (появление шита, нажатие). */
   --motion-fast: 160ms;
 
   /* Безопасные зоны: вырез сверху и home bar снизу (айфон). */

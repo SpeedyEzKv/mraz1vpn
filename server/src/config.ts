@@ -70,6 +70,8 @@ export function loadConfig() {
     realityAcceptProxyProtocol: optional('REALITY_ACCEPT_PROXY_PROTOCOL', 'true') === 'true',
     xhttpPort: int('XHTTP_PORT', 10443, 1, 65535),
     trialDays: int('TRIAL_DAYS', 3, 1, 30),
+    // Сколько дней получает пригласивший, когда друг впервые оплатит. 0 — программа выключена.
+    referralBonusDays: int('REFERRAL_BONUS_DAYS', 7, 0, 90),
 
     // Оплата. Провайдер без ключей просто не показывается в кабинете.
     yookassaShopId: optional('YOOKASSA_SHOP_ID', ''),

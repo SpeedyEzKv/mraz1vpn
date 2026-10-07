@@ -34,3 +34,17 @@ export function formatTimeLeft(iso: string, now = Date.now()): string {
   const days = Math.ceil(ms / 86_400_000);
   return `${days} ${plural(days, 'день', 'дня', 'дней')}`;
 }
+
+/** Сколько полных суток осталось, с округлением вверх (как в formatTimeLeft); 0 — закончилась. */
+export function daysLeft(iso: string, now = Date.now()): number {
+  const ms = new Date(iso).getTime() - now;
+  return ms <= 0 ? 0 : Math.ceil(ms / 86_400_000);
+}
+
+const dayFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
+
+/** «12 октября». */
+export const formatDay = (iso: string) => dayFmt.format(new Date(iso));
+
+/** «100 ₽», «66,42 ₽». */
+export const formatRub = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2).replace('.', ',')} ₽`;

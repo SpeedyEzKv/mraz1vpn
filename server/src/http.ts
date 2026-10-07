@@ -26,6 +26,10 @@ export interface VpnDeps {
   endpoint: Endpoint;
 }
 
+export interface ReferralDeps {
+  getInfo: (userId: number) => Promise<unknown>;
+}
+
 export interface PaymentDeps {
   service: PaymentService;
   cryptobotToken: string | null;
@@ -34,7 +38,7 @@ export interface PaymentDeps {
 export function buildApp(
   config: AppConfig,
   dbs: Databases,
-  opts: { logger?: boolean; vpn?: VpnDeps; payments?: PaymentDeps } = {},
+  opts: { logger?: boolean; vpn?: VpnDeps; payments?: PaymentDeps; referrals?: ReferralDeps } = {},
 ) {
   const app = Fastify({
     logger: opts.logger ?? false,
@@ -208,6 +212,11 @@ export function buildApp(
         }
         return vpn.service.getSummary(req.userId);
       });
+    }
+
+    if (opts.referrals) {
+      const referrals = opts.referrals;
+      scope.get('/api/referrals', async (req) => referrals.getInfo(req.userId));
     }
 
     if (payments) {

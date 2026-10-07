@@ -8,7 +8,7 @@
 import { sql } from 'kysely';
 import type { Databases } from '../db/db.js';
 import type { Logger } from '../vpn/service.js';
-import { newSubToken } from '../vpn/service.js';
+import { grantDays } from '../vpn/grant.js';
 import type { CryptoBotApi, CryptoInvoice } from './cryptobot.js';
 import { findPlan, kopToRub, paymentDescription, PLANS } from './plans.js';
 import type { YooKassaApi, YooPayment } from './yookassa.js';
@@ -32,6 +32,7 @@ export function createPaymentService(deps: {
   domain: string;
   botUsername: string;
   deviceLimit: number;
+  referralBonusDays?: number;
   onSubscriptionChanged: (userId: number) => Promise<void>;
   notifier: Notifier;
   log: Logger;
@@ -153,62 +154,33 @@ export function createPaymentService(deps: {
         .executeTakeFirst();
       if (!pay || pay.applied_at) return null;
 
-      const sub = await tx
-        .selectFrom('subscriptions')
-        .select(['id'])
-        .where('user_id', '=', pay.user_id)
-        .where('status', '<>', 'archived')
-        .forUpdate()
-        .executeTakeFirst();
-
-      let subId: number;
-      if (sub) {
-        await tx
-          .updateTable('subscriptions')
-          .set({
-            status: 'active',
-            expires_at: sql<Date>`greatest(coalesce(expires_at, now()), now()) + make_interval(days => ${pay.days})`,
-            updated_at: sql<Date>`now()`,
-          })
-          .where('id', '=', sub.id)
-          .execute();
-        subId = sub.id;
-      } else {
-        const created = await tx
-          .insertInto('subscriptions')
-          .values({
-            user_id: pay.user_id,
-            status: 'active',
-            expires_at: sql<Date>`now() + make_interval(days => ${pay.days})`,
-            device_limit: deps.deviceLimit,
-            archived_at: null,
-          })
-          .returning('id')
-          .executeTakeFirstOrThrow();
-        subId = created.id;
-      }
-
-      const key = await tx
-        .selectFrom('vpn_keys')
-        .select('id')
-        .where('subscription_id', '=', subId)
-        .where('revoked_at', 'is', null)
-        .executeTakeFirst();
-      if (!key) {
-        await tx
-          .insertInto('vpn_keys')
-          .values({ user_id: pay.user_id, subscription_id: subId, sub_token: newSubToken(), revoked_at: null, panel_synced_at: null })
-          .execute();
-      }
-
+      const granted = await grantDays(tx, pay.user_id, pay.days, { deviceLimit: deps.deviceLimit, markActive: true });
       await tx
         .updateTable('payments')
         .set({ status: 'succeeded', paid_at: paidAt, applied_at: sql<Date>`now()` })
         .where('id', '=', pay.id)
         .execute();
 
-      const s = await tx.selectFrom('subscriptions').select('expires_at').where('id', '=', subId).executeTakeFirstOrThrow();
-      return { userId: pay.user_id, expiresAt: s.expires_at! };
+      // Бонус пригласившему — за первую оплату приглашённого, один раз (уникальность referred_id).
+      let referral: { referrerId: number; expiresAt: Date } | null = null;
+      const bonus = deps.referralBonusDays ?? 0;
+      if (bonus > 0) {
+        const u = await tx.selectFrom('users').select('referred_by').where('id', '=', pay.user_id).executeTakeFirst();
+        if (u?.referred_by) {
+          const rewarded = await tx
+            .insertInto('referral_rewards')
+            .values({ referrer_id: u.referred_by, referred_id: pay.user_id, payment_id: pay.id, days: bonus })
+            .onConflict((oc) => oc.column('referred_id').doNothing())
+            .returning('id')
+            .executeTakeFirst();
+          if (rewarded) {
+            const g = await grantDays(tx, u.referred_by, bonus, { deviceLimit: deps.deviceLimit, markActive: false });
+            referral = { referrerId: u.referred_by, expiresAt: g.expiresAt };
+          }
+        }
+      }
+
+      return { userId: pay.user_id, expiresAt: granted.expiresAt, referral };
     });
 
     if (!result) return false;
@@ -221,6 +193,14 @@ export function createPaymentService(deps: {
     await deps.notifier
       .send(result.userId, `Оплата прошла. Подписка действует до ${formatMsk(result.expiresAt)} (МСК).`)
       .catch((e) => log.warn({ err: (e as Error).message }, 'payments: сообщение не отправлено'));
+    if (result.referral) {
+      const { referrerId, expiresAt } = result.referral;
+      log.info({ referrerId, referredId: result.userId }, 'referrals: бонус начислен');
+      await deps.onSubscriptionChanged(referrerId).catch(() => undefined);
+      await deps.notifier
+        .send(referrerId, `🎉 Ваш друг оформил подписку — вам +${deps.referralBonusDays} дней. VPN работает до ${formatMsk(expiresAt)} (МСК).`)
+        .catch(() => undefined);
+    }
     return true;
   }
 

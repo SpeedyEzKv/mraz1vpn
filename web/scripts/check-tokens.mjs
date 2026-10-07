@@ -1,5 +1,5 @@
 // Проверка дизайн-системы: значения цветов и шрифтов живут только в tokens.css,
-// запрещённые приёмы (градиенты, стекло, тени, капс с разрядкой) не используются нигде.
+// градиенты описываются только там же; стекло, тени и капс с разрядкой не используются нигде.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
@@ -11,7 +11,7 @@ const rules = [
   { re: /\b(rgba?|hsla?|hwb|oklch|lab|lch)\(/, msg: 'цвет функцией — используйте var(--color-*)', skipTokens: true },
   { re: /font-family\s*:(?!\s*var\()/, msg: 'шрифт напрямую — используйте var(--font-family)', skipTokens: true },
   { re: /font-weight\s*:(?!\s*var\()/, msg: 'вес шрифта напрямую — используйте var(--font-weight-*)', skipTokens: true },
-  { re: /(linear|radial|conic)-gradient/, msg: 'градиенты запрещены' },
+  { re: /(linear|radial|conic)-gradient/, msg: 'градиент — опишите токеном --gradient-* в tokens.css', skipTokens: true },
   { re: /backdrop-filter/, msg: 'эффект стекла запрещён' },
   { re: /box-shadow\s*:(?!\s*none)/, msg: 'тени запрещены' },
   { re: /text-transform\s*:\s*uppercase/, msg: 'капс запрещён' },

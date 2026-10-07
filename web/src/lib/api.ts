@@ -131,3 +131,14 @@ export const createPayment = (plan: string, provider: Provider) =>
   });
 
 export const getPayment = (id: number) => api<{ id: number; status: PaymentStatus }>(`/api/payments/${id}`);
+
+export interface Referrals {
+  link: string;
+  bonusDays: number;
+  invited: number;
+  paid: number;
+  daysEarned: number;
+}
+
+/** Реферальная ссылка и статистика. 404 — программа выключена на сервере. */
+export const getReferrals = () => api<Referrals>('/api/referrals');
