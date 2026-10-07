@@ -31,7 +31,8 @@ before(async () => {
   const topology = createTopologyCache(xui.api, {
     serverName: 'mraz1vpn.ru',
     realityTarget: 'caddy:8443',
-    vpnPort: 443,
+    xrayPort: 443,
+    acceptProxyProtocol: false,
     xhttpPort: 10443,
   });
   service = createVpnService({

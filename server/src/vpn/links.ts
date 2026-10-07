@@ -4,7 +4,7 @@
 import type { VpnTopology } from '../xui/setup.js';
 
 export interface Endpoint {
-  host: string; // mraz1vpn.ru
+  host: string; // IP сервера (или домен)
   port: number; // 443
 }
 

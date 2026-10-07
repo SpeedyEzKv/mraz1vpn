@@ -14,7 +14,7 @@ import type { VpnTopology } from '../xui/setup.js';
 export interface VpnConfig {
   trialDays: number;
   deviceLimit: number;
-  subscriptionBaseUrl: string; // https://mraz1vpn.ru/sub/
+  subscriptionBaseUrl: string; // https://mraz1vpn.online/sub/
 }
 
 export type VpnStatus = 'none' | 'trial' | 'active' | 'expired';

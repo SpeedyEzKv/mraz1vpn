@@ -59,9 +59,13 @@ export function loadConfig() {
     // Куда подключаются клиенты VPN и под какой домен маскируется Reality.
     vpnHost: optional('VPN_HOST', domain),
     vpnPort: int('VPN_PORT', 443, 1, 65535),
-    realityServerName: optional('REALITY_SERVER_NAME', domain),
-    // Куда Xray отдаёт соединения, не прошедшие Reality, — Caddy с сайтом и mini app.
-    realityTarget: optional('REALITY_TARGET', 'caddy:8443'),
+    // Под какой сайт маскируется Reality и куда Xray отдаёт соединения, не прошедшие проверку.
+    // Подбирает scripts/reality-pick.sh: крупный иностранный сайт с TLS 1.3 и HTTP/2.
+    realityServerName: required('REALITY_SERVER_NAME'),
+    realityTarget: optional('REALITY_TARGET', `${required('REALITY_SERVER_NAME')}:443`),
+    // Порт inbound'а Xray внутри и приём PROXY protocol от распределителя edge.
+    xrayPort: int('XRAY_PORT', 4443, 1, 65535),
+    realityAcceptProxyProtocol: optional('REALITY_ACCEPT_PROXY_PROTOCOL', 'true') === 'true',
     xhttpPort: int('XHTTP_PORT', 10443, 1, 65535),
     trialDays: int('TRIAL_DAYS', 3, 1, 30),
 

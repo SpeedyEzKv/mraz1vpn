@@ -1,7 +1,7 @@
 #!/bin/sh
 # Первичная настройка панели 3x-ui: логин, пароль и секретный путь из .env,
 # выпуск API-токена для сервера (записывается в .env).
-# Запускать после init-env.sh и перед первым `docker compose up -d --build`.
+# Вызывается из deploy.sh при первом запуске (пока XUI_API_TOKEN пуст).
 # Повторный запуск безопасен: токен перевыпускается, старый перестаёт работать.
 set -eu
 cd "$(dirname "$0")/.."
@@ -15,7 +15,8 @@ BASE_=$(get XUI_BASE_PATH)
 [ -n "$USER_" ] && [ -n "$PASS_" ] && [ -n "$BASE_" ] || { echo "В .env не заполнены XUI_USERNAME / XUI_PASSWORD / XUI_BASE_PATH"; exit 1; }
 
 echo "Запускаю панель…"
-docker compose up -d xui
+# 3x-ui работает в сети контейнера edge, поэтому поднимаем оба.
+docker compose up -d edge xui
 # Ждём, пока панель создаст свою базу.
 i=0
 until docker compose exec -T xui /app/x-ui setting -show >/dev/null 2>&1; do
@@ -35,4 +36,4 @@ fi
 
 docker compose restart xui >/dev/null
 echo "Готово: панель настроена, токен записан в .env."
-echo "Панель: ssh -L 2053:127.0.0.1:2053 root@<IP сервера>, затем http://127.0.0.1:2053/$BASE_/"
+echo "Панель (с вашего компьютера): ssh -L 2053:127.0.0.1:2053 root@<IP сервера>, затем http://127.0.0.1:2053/$BASE_/"

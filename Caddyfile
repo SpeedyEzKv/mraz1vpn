@@ -1,8 +1,19 @@
 {
-	# Порт 443 занят Xray: HTTPS-трафик сайта он передаёт сюда, на 8443.
+	# Порт 443 у распределителя (edge): соединения на наш домен он передаёт сюда, на 8443.
 	https_port 8443
 	# Автоматический редирект Caddy вёл бы на :8443 — делаем свой, на обычный 443.
 	auto_https disable_redirects
+
+	servers :8443 {
+		# edge присылает настоящий IP клиента по PROXY protocol. Принимаем его только из сети Docker.
+		listener_wrappers {
+			proxy_protocol {
+				timeout 5s
+				allow 172.16.0.0/12 10.0.0.0/8 192.168.0.0/16
+			}
+			tls
+		}
+	}
 }
 
 http://{$DOMAIN} {

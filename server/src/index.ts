@@ -19,7 +19,8 @@ const xui = createXuiClient(config.xuiUrl, config.xuiApiToken);
 const topology = createTopologyCache(xui, {
   serverName: config.realityServerName,
   realityTarget: config.realityTarget,
-  vpnPort: config.vpnPort,
+  xrayPort: config.xrayPort,
+  acceptProxyProtocol: config.realityAcceptProxyProtocol,
   xhttpPort: config.xhttpPort,
 });
 

@@ -54,6 +54,7 @@ interface Envelope<T> {
 export interface XuiApi {
   listInbounds(): Promise<XuiInbound[]>;
   addInbound(inbound: Omit<XuiInbound, 'id'>): Promise<XuiInbound>;
+  updateInbound(id: number, inbound: Omit<XuiInbound, 'id'>): Promise<void>;
   setFallbacks(masterId: number, fallbacks: { childId: number; xver: number }[]): Promise<void>;
   newX25519(): Promise<{ privateKey: string; publicKey: string }>;
   getClient(email: string): Promise<XuiClientState | null>;
@@ -91,6 +92,10 @@ export function createXuiClient(baseUrl: string, apiToken: string, timeoutMs = 1
     listInbounds: () => call<XuiInbound[]>('GET', '/inbounds/list'),
 
     addInbound: (inbound) => call<XuiInbound>('POST', '/inbounds/add', inbound),
+
+    async updateInbound(id, inbound) {
+      await call('POST', `/inbounds/update/${id}`, inbound);
+    },
 
     async setFallbacks(masterId, fallbacks) {
       await call('POST', `/inbounds/${masterId}/fallbacks`, { fallbacks });

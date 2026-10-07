@@ -7,6 +7,7 @@ import { after, before, describe, test } from 'node:test';
 import { createVpnService, panelEmail } from '../src/vpn/service.js';
 import { createTopologyCache } from '../src/vpn/topology.js';
 import { createXuiClient } from '../src/xui/client.js';
+import { ensureTopology } from '../src/xui/setup.js';
 import { createTestDb } from './helpers.js';
 
 const URL_ = process.env.XUI_TEST_URL;
@@ -17,7 +18,13 @@ describe('живая панель 3x-ui', { skip }, () => {
   const U = 7000 + Math.floor(Math.random() * 1000);
   let t: Awaited<ReturnType<typeof createTestDb>>;
   const xui = createXuiClient(URL_ ?? '', TOKEN ?? '');
-  const cfg = { serverName: 'mraz1vpn.ru', realityTarget: '127.0.0.1:8443', vpnPort: 443, xhttpPort: 10443 };
+  const cfg = {
+    serverName: 'mraz1vpn.ru',
+    realityTarget: '127.0.0.1:8443',
+    xrayPort: 443,
+    xhttpPort: 10443,
+    acceptProxyProtocol: false,
+  };
   const topology = createTopologyCache(xui, cfg);
   let service: ReturnType<typeof createVpnService>;
 
@@ -43,6 +50,26 @@ describe('живая панель 3x-ui', { skip }, () => {
     const list = await xui.listInbounds();
     assert.equal(list.filter((i) => i.tag === 'mraz-vision').length, 1);
     assert.equal(list.filter((i) => i.tag === 'mraz-xhttp').length, 1);
+  });
+
+  test('смена маскировки и порта в настройках переносится в уже созданный inbound, клиенты и ключи на месте', async () => {
+    const before = await topology.refresh();
+    const clientsBefore = (await xui.getClient('tg1001'))?.inboundIds;
+    const moved = { ...cfg, serverName: 'www.example.com', realityTarget: 'www.example.com:443', xrayPort: 4443, acceptProxyProtocol: true };
+    const after = await ensureTopology(xui, moved);
+    assert.equal(after.serverName, 'www.example.com');
+    assert.equal(after.publicKey, before.publicKey, 'ключ Reality не меняется');
+    assert.equal(after.shortId, before.shortId);
+    const v = (await xui.listInbounds()).find((i) => i.tag === 'mraz-vision')!;
+    assert.equal(v.port, 4443);
+    assert.equal(v.listen, '127.0.0.1');
+    const stream = (typeof v.streamSettings === 'string' ? JSON.parse(v.streamSettings) : v.streamSettings) as Record<string, any>;
+    assert.equal(stream.sockopt.acceptProxyProtocol, true);
+    assert.equal(stream.realitySettings.target, 'www.example.com:443');
+    if (clientsBefore) assert.deepEqual((await xui.getClient('tg1001'))?.inboundIds, clientsBefore, 'клиенты остались');
+    // Повторный вызов ничего не меняет; потом возвращаем как было для остальных тестов.
+    assert.deepEqual(await ensureTopology(xui, moved), after);
+    await ensureTopology(xui, cfg);
   });
 
   test('пробный период создаёт клиента на обоих inbound’ах', async () => {

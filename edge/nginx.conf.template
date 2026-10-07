@@ -1,0 +1,36 @@
+# Распределитель на порту 443 (TCP, без расшифровки TLS).
+# Смотрит только имя сайта (SNI) в начале соединения:
+#   наш домен      → Caddy (сайт, mini app, API, ссылки подписки);
+#   всё остальное  → Xray (VPN, Reality под иностранный сайт).
+# IP клиента передаётся дальше по PROXY protocol — нужен для лимита устройств и логов.
+#
+# Контейнер 3x-ui работает в сетевом пространстве этого контейнера (network_mode: service:edge):
+# Xray слушает 127.0.0.1:${XRAY_PORT}, а бан лишних устройств (fail2ban в 3x-ui) режет клиента
+# прямо здесь, на входе 443.
+worker_processes 1;
+error_log /dev/stderr warn;
+pid /tmp/nginx.pid;
+
+events {
+    worker_connections 4096;
+}
+
+stream {
+    # Встроенный DNS Docker: адреса контейнеров берутся на каждом подключении,
+    # перезапуск caddy или xui не ломает маршрут.
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    map $ssl_preread_server_name $backend {
+        ${DOMAIN}      caddy:8443;
+        default        127.0.0.1:${XRAY_PORT};
+    }
+
+    server {
+        listen 443 reuseport;
+        ssl_preread on;
+        proxy_protocol on;
+        proxy_pass $backend;
+        proxy_connect_timeout 5s;
+        proxy_timeout 1h;
+    }
+}

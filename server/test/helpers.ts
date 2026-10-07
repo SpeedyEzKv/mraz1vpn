@@ -71,6 +71,11 @@ export function fakeXui() {
       inbounds.push(row);
       return row;
     },
+    async updateInbound(id, i) {
+      guard('updateInbound');
+      const idx = inbounds.findIndex((x) => x.id === id);
+      inbounds[idx] = { ...i, id } as XuiInbound;
+    },
     async setFallbacks() {
       guard('setFallbacks');
     },

@@ -60,9 +60,13 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       APP_DATABASE_URL: postgres://mraz_app:${APP_DB_PASSWORD}@db:5432/mraz1vpn
       SYSTEM_DATABASE_URL: postgres://mraz_system:${SYSTEM_DB_PASSWORD}@db:5432/mraz1vpn
-      XUI_URL: http://xui:2053/${XUI_BASE_PATH}/
+      XUI_URL: http://edge:2053/${XUI_BASE_PATH}/
       XUI_API_TOKEN: ${XUI_API_TOKEN}
-      REALITY_TARGET: caddy:8443
+      # Клиенты VPN подключаются по IP: даже если домен заблокируют, VPN продолжит работать.
+      VPN_HOST: ${SERVER_IP:-${DOMAIN}}
+      REALITY_SERVER_NAME: ${REALITY_SERVER_NAME}
+      XRAY_PORT: "4443"
+      REALITY_ACCEPT_PROXY_PROTOCOL: "true"
       YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID:-}
       YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY:-}
       CRYPTOBOT_TOKEN: ${CRYPTOBOT_TOKEN:-}
@@ -75,12 +79,32 @@ services:
     mem_limit: 384m
     logging: *logging
 
-  # Xray (VLESS Reality) + панель 3x-ui. Порт 443 — у Xray: VPN-клиентов он обслуживает сам,
-  # всё остальное (браузер, Telegram) прозрачно передаёт в Caddy:8443.
+  # Вход на 443: распределитель по имени сайта (SNI), TLS не расшифровывает.
+  #   наш домен → Caddy (mini app, API, подписка); остальное → Xray (VPN).
+  # Сетью этого контейнера пользуется и 3x-ui (network_mode ниже), поэтому порты публикуются здесь.
   # Панель наружу не открыта: только 127.0.0.1 сервера, заходить через SSH-туннель (см. README).
+  edge:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+      XRAY_PORT: "4443"
+      # Шаблон превращается в /etc/nginx/nginx.conf при старте (подставляются DOMAIN и XRAY_PORT).
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
+    volumes:
+      - ./edge/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
+    ports:
+      - "443:443"
+      - "127.0.0.1:2053:2053"
+    mem_limit: 64m
+    logging: *logging
+
+  # Xray (VLESS Reality) + панель 3x-ui. Работает в сети edge: Xray слушает 127.0.0.1:4443,
+  # а бан лишних устройств (fail2ban) срабатывает прямо на входе 443.
   xui:
     image: ghcr.io/mhsanaei/3x-ui:v3.9.0
     restart: unless-stopped
+    network_mode: service:edge
     environment:
       TZ: Europe/Moscow
       # Лимит устройств (limitIp) банит лишние IP через fail2ban — нужны NET_ADMIN и NET_RAW.
@@ -89,15 +113,14 @@ services:
     cap_add:
       - NET_ADMIN
       - NET_RAW
-    ports:
-      - "443:443"
-      - "127.0.0.1:2053:2053"
+    depends_on:
+      - edge
     volumes:
       - xui_db:/etc/x-ui
     mem_limit: 384m
     logging: *logging
 
-  # Сайт и mini app. Слушает 8443 внутри сети Docker (сюда Xray отдаёт не-VPN трафик)
+  # Сайт и mini app. Слушает 8443 внутри сети Docker (сюда edge отдаёт соединения на наш домен)
   # и 80 снаружи — для сертификата Let's Encrypt и редиректа на https.
   caddy:
     build: ./web

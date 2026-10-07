@@ -13,20 +13,31 @@ Telegram-бот и mini app для VPN-подписок.
 
 ## Как устроен VPN
 
-Всё на одном VPS. Порт 443 принадлежит Xray (контейнер `xui`, панель 3x-ui v3.9):
+Всё на одном VPS (Ubuntu 24.04, Нидерланды). Снаружи открыты только 22, 80 и 443.
 
 ```
-клиент VPN ──443──▶ Xray, inbound mraz-vision (VLESS + TCP + Reality + Vision)
-                     ├─ внутри VLESS-TCP ......... VPN
-                     ├─ внутри HTTP/2 (XHTTP) .... fallback ▶ mraz-xhttp (127.0.0.1:10443) ▶ VPN
-                     └─ не Reality (браузер, Telegram) ▶ Caddy:8443 ▶ сайт и mini app
+                 ┌─ SNI = mraz1vpn.online ─▶ Caddy:8443 ▶ сайт, mini app, API, /sub, /pay
+клиент ──443──▶ edge (nginx, по имени сайта, без расшифровки)
+                 └─ любое другое имя ───────▶ Xray 127.0.0.1:4443, inbound mraz-vision
+                                               (VLESS + TCP + Reality + Vision)
+                                               ├─ VLESS-TCP .............. VPN
+                                               ├─ HTTP/2 (XHTTP) ......... fallback ▶ mraz-xhttp ▶ VPN
+                                               └─ не прошёл Reality ...... ▶ настоящий сайт-маска
 ```
 
-- Reality маскируется под наш же домен: снаружи mraz1vpn.ru выглядит обычным сайтом с настоящим сертификатом.
-- У каждого ключа две ссылки: основная (TCP Vision) и запасная (XHTTP) — если первую начнут резать.
-- Inbound'ы сервер создаёт в панели сам при первом запуске. Руками в панели ничего настраивать не нужно.
-- Ссылку подписки (`https://mraz1vpn.ru/sub/<токен>`) отдаёт наш сервер, а не панель: срок берётся из нашей базы, ссылку можно сбросить в кабинете, панель наружу не открыта.
-- Источник правды — наша база. Клиент в панели (`tg<telegram_id>`, лимит 3 устройства) обновляется сразу после изменения, а раз в 5 минут сверка догоняет всё, что не долетело (раз в 6 часов — полная сверка всех юзеров).
+- **Маскировка.** Reality выдаёт себя за крупный иностранный сайт (`REALITY_SERVER_NAME`,
+  подбирает `scripts/reality-pick.sh` с самого сервера: TLS 1.3, HTTP/2, X25519, наименьшая задержка).
+  Кто постучится на 443 с этим именем без ключа, увидит настоящий сайт.
+- **Клиенты подключаются по IP**, а не по домену: если домен заблокируют, VPN продолжит работать.
+- **IP клиента** edge передаёт по PROXY protocol в Xray и Caddy. 3x-ui работает в сетевом пространстве
+  edge, поэтому лимит устройств (fail2ban) банит лишний IP прямо на входе.
+- У каждого ключа две ссылки: основная (TCP Vision) и запасная (XHTTP).
+- Inbound'ы сервер создаёт в панели сам. Если поменять маскировку или порт в `.env`, сервер при запуске
+  перенесёт настройки в существующий inbound — ключи Reality и клиенты сохраняются.
+- Ссылку подписки (`https://mraz1vpn.online/sub/<токен>`) отдаёт наш сервер: срок из нашей базы,
+  ссылку можно сбросить в кабинете, панель наружу не открыта.
+- Источник правды — наша база. Клиент в панели (`tg<telegram_id>`, лимит 3 устройства) обновляется
+  сразу, сверка раз в 5 минут догоняет то, что не долетело (раз в 6 часов — полная).
 
 ## Безопасность данных
 
@@ -39,37 +50,52 @@ Telegram-бот и mini app для VPN-подписок.
 
 ## Первый запуск на сервере
 
-Нужно: VPS на Ubuntu 22.04/24.04 за пределами РФ, домен с A-записью на IP сервера.
+Нужно: VPS с Ubuntu 22.04/24.04 за пределами РФ (2 ГБ памяти, от 10 ГБ диска) и домен,
+у которого A-запись `@` указывает на IP сервера.
+
+С вашего компьютера (PowerShell или терминал):
 
 ```sh
-# 1. Docker
-curl -fsSL https://get.docker.com | sh
+ssh root@46.17.98.234
+```
 
-# 2. Код
+На сервере:
+
+```sh
+# 1. Код
+apt-get update && apt-get install -y git
 git clone https://github.com/SpeedyEzKv/mraz1vpn.git
 cd mraz1vpn
 
-# 3. Секреты: скрипт сгенерирует пароли, вписать нужно только BOT_TOKEN
+# 2. Система: Docker, swap, файрвол, BBR, автообновления, бэкапы по расписанию
+./scripts/server-setup.sh
+
+# 3. Настройки: спросит токен бота и CryptoBot, остальное сгенерирует сам
 ./scripts/init-env.sh
-nano .env
 
-# 4. Панель 3x-ui: логин, пароль, секретный путь и API-токен для сервера
-./scripts/xui-init.sh
-
-# 5. Запуск
-docker compose up -d --build
-
-# 6. Проверка
-docker compose ps
-curl https://mraz1vpn.ru/api/health      # {"ok":true}
-docker compose logs server | grep "inbound"   # vpn: inbound’ы готовы
+# 4. Запуск: проверит домен, соберёт образы, подберёт маскировку,
+#    настроит панель 3x-ui, запустит всё и проверит, что сайт и VPN отвечают
+./scripts/deploy.sh
 ```
 
-Файрвол: снаружи нужны только 22 (SSH), 80 и 443 (TCP).
+Обновление после изменений в репозитории:
 
 ```sh
-ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
+cd ~/mraz1vpn && git pull && ./scripts/deploy.sh
 ```
+
+Полезное:
+
+```sh
+docker compose ps                         # что запущено
+docker compose logs --tail 100 server     # логи сервера (бот, оплаты, сверка)
+./scripts/backup.sh                       # бэкап вручную (обычно — сам, каждый день в 04:20)
+ls /var/backups/mraz1vpn                  # бэкапы за 14 дней
+./scripts/reality-pick.sh && docker compose up -d server   # сменить сайт-маску
+```
+
+Бэкапы лежат на том же сервере. Раз в неделю-две скачивайте свежий себе:
+`scp root@46.17.98.234:/var/backups/mraz1vpn/db_*.dump .`
 
 ### Оплата
 
@@ -80,13 +106,13 @@ ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
 в чек попадает описание платежа («Доступ к VPN-сервису Mraz1VPN на 3 месяца»).
 
 1. Личный кабинет ЮKassa → Интеграция → Ключи API: `shopId` и секретный ключ → `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`.
-2. Интеграция → HTTP-уведомления: URL `https://mraz1vpn.ru/pay/yookassa`, события `payment.succeeded` и `payment.canceled`.
+2. Интеграция → HTTP-уведомления: URL `https://mraz1vpn.online/pay/yookassa`, события `payment.succeeded` и `payment.canceled`.
 3. В настройках магазина должны быть включены СБП и банковские карты.
 
 **CryptoBot (USDT, TON и др.).** Счёт выставляется в рублях, CryptoBot пересчитывает по курсу.
 
 1. @CryptoBot → Crypto Pay → Create App → токен → `CRYPTOBOT_TOKEN`.
-2. Там же Webhooks → включить, URL `https://mraz1vpn.ru/pay/cryptobot`.
+2. Там же Webhooks → включить, URL `https://mraz1vpn.online/pay/cryptobot`.
 3. Для проверки без денег: @CryptoTestnetBot, его токен и `CRYPTOBOT_TESTNET=true`.
 
 После правки `.env`: `docker compose up -d server`.
