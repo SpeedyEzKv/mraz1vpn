@@ -149,11 +149,11 @@ describe('тарифы', () => {
       [
         ['m1', 100, 30],
         ['m3', 249, 90],
-        ['m6', 499, 180],
-        ['y1', 999, 365],
+        ['m6', 449, 180],
+        ['y1', 799, 365],
       ],
     );
-    assert.equal(r.plans[3].discountPct, 17);
+    assert.deepEqual(r.plans.map((p: { discountPct: number }) => p.discountPct), [0, 17, 25, 33]);
   });
 
   test('без сессии — 401, неизвестный тариф или способ — 400', async () => {
@@ -248,7 +248,7 @@ describe('CryptoBot', () => {
     const r = (await pay(B, 'm6', 'cryptobot')).json();
     assert.equal(r.url, 'https://t.me/CryptoBot?start=IVabc');
     const inv = [...invoices.values()].at(-1)!;
-    assert.equal(inv.amount, '499.00');
+    assert.equal(inv.amount, '449.00');
     assert.equal(inv.payload, String(r.id));
   });
 

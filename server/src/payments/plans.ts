@@ -11,8 +11,8 @@ export interface Plan {
 export const PLANS: readonly Plan[] = [
   { id: 'm1', title: '1 месяц', days: 30, months: 1, priceKop: 100_00 },
   { id: 'm3', title: '3 месяца', days: 90, months: 3, priceKop: 249_00 },
-  { id: 'm6', title: '6 месяцев', days: 180, months: 6, priceKop: 499_00 },
-  { id: 'y1', title: '1 год', days: 365, months: 12, priceKop: 999_00 },
+  { id: 'm6', title: '6 месяцев', days: 180, months: 6, priceKop: 449_00 },
+  { id: 'y1', title: '1 год', days: 365, months: 12, priceKop: 799_00 },
 ];
 
 export const findPlan = (id: unknown): Plan | undefined => PLANS.find((p) => p.id === id);
