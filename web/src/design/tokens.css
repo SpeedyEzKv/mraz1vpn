@@ -1,53 +1,65 @@
 /*
  * Дизайн-токены Mraz1VPN. Единственное место, где разрешены цвета, градиенты и шрифты.
  * Проверка: npm run lint:tokens — падает, если цвет/градиент/шрифт встречаются где-то ещё.
- * Тема всегда тёмная. Фирменные цвета — как у знака на аватарке: бирюза → синий → фиолет.
+ * Тема всегда тёмная. Стиль — «стеклянная звезда»: глубокий чёрный, хром и серебро, мягкое холодное свечение.
  */
 :root {
   color-scheme: dark;
 
-  /* Поверхности */
-  --color-bg: #07090f;
-  --color-surface: #0e131d;
-  --color-surface-2: #151c2a;
-  --color-border: #1f2838;
+  /* Поверхности: глубокий чёрный с холодным отливом */
+  --color-bg: #050608;
+  --color-surface: #0c0e12;
+  --color-surface-2: #15181e;
+  --color-border: #22262e;
+  --color-edge: rgba(214, 224, 240, 0.22); /* светящаяся кромка, как у стекла */
 
   /* Текст */
-  --color-text: #eef2f8;
-  --color-text-secondary: #8b94a7;
+  --color-text: #f1f3f7;
+  --color-text-secondary: #8b929e;
 
-  /* Фирменные цвета */
-  --color-brand-1: #33d1bf; /* бирюза */
-  --color-brand-2: #2f7de1; /* синий */
-  --color-brand-3: #7b45e0; /* фиолет */
-  --color-accent: #3fa9e8; /* одиночный акцент: активная вкладка, ссылки, фокус */
-  --color-on-accent: #ffffff;
-  --color-accent-soft: rgba(63, 169, 232, 0.14);
+  /* Хром */
+  --color-chrome-hi: #ffffff;
+  --color-chrome: #d5dbe4;
+  --color-chrome-mid: #8a93a1;
+  --color-chrome-lo: #5b6370;
+  --color-accent: #c9d5ea; /* серебро с холодным отливом: активная вкладка, иконки, фокус */
+  --color-on-accent: #07080b;
+  --color-accent-soft: rgba(201, 213, 234, 0.10);
 
-  /* Состояния: бейдж статуса подписки */
-  --color-ok: #34d399;
-  --color-ok-soft: rgba(52, 211, 153, 0.14);
-  --color-warn: #f5b84a;
-  --color-warn-soft: rgba(245, 184, 74, 0.14);
-  --color-off: #f27979;
-  --color-off-soft: rgba(242, 121, 121, 0.14);
+  /* Состояния: бейдж статуса подписки (приглушённые, чтобы не спорить с хромом) */
+  --color-ok: #7fe0b5;
+  --color-ok-soft: rgba(127, 224, 181, 0.12);
+  --color-warn: #f0c983;
+  --color-warn-soft: rgba(240, 201, 131, 0.12);
+  --color-off: #f08f8f;
+  --color-off-soft: rgba(240, 143, 143, 0.12);
 
   /* Затемнение под нижним шитом */
-  --color-scrim: rgba(0, 0, 0, 0.6);
+  --color-scrim: rgba(0, 0, 0, 0.66);
 
   /* Градиенты */
-  --gradient-brand: linear-gradient(120deg, var(--color-brand-1) 0%, var(--color-brand-2) 52%, var(--color-brand-3) 100%);
+  --gradient-chrome: linear-gradient(180deg, #ffffff 0%, #eef1f5 38%, #bcc4cf 54%, #eef1f5 76%, #d6dce4 100%);
+  --gradient-chrome-text: linear-gradient(180deg, #ffffff 0%, #e3e8ef 40%, #7e8898 58%, #f2f5f8 76%, #aab3bf 100%);
+  --gradient-edge: linear-gradient(135deg, rgba(230, 236, 246, 0.35) 0%, rgba(230, 236, 246, 0.04) 40%, rgba(230, 236, 246, 0.04) 60%, rgba(180, 200, 240, 0.28) 100%);
   --gradient-hero:
-    radial-gradient(120% 90% at 0% 0%, rgba(51, 209, 191, 0.18) 0%, rgba(51, 209, 191, 0) 55%),
-    radial-gradient(120% 90% at 100% 100%, rgba(123, 69, 224, 0.22) 0%, rgba(123, 69, 224, 0) 60%),
+    radial-gradient(70% 60% at 88% 12%, rgba(190, 205, 235, 0.16) 0%, rgba(190, 205, 235, 0) 70%),
+    radial-gradient(90% 70% at 0% 100%, rgba(120, 140, 190, 0.10) 0%, rgba(120, 140, 190, 0) 70%),
     var(--color-surface);
   --gradient-hero-off:
-    radial-gradient(120% 90% at 100% 0%, rgba(242, 121, 121, 0.12) 0%, rgba(242, 121, 121, 0) 60%),
+    radial-gradient(90% 70% at 100% 0%, rgba(240, 143, 143, 0.10) 0%, rgba(240, 143, 143, 0) 65%),
     var(--color-surface);
-  --gradient-glow: radial-gradient(60% 60% at 50% 40%, rgba(47, 125, 225, 0.35) 0%, rgba(47, 125, 225, 0) 100%);
+  --gradient-glow: radial-gradient(55% 45% at 50% 38%, rgba(190, 205, 235, 0.16) 0%, rgba(190, 205, 235, 0) 100%);
+  /* Фон приложения: «жидкий металл» сверху, уходит в чёрный */
+  --bg-app:
+    linear-gradient(180deg, rgba(5, 6, 8, 0) 0%, rgba(5, 6, 8, 0.6) 45%, #050608 80%),
+    url('/brand/liquid.jpg') top center / 100% auto no-repeat,
+    #050608;
+
+  /* Картинки бренда */
+  --image-star: url('/brand/star-hero.png');
 
   /* Шрифт */
-  --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;

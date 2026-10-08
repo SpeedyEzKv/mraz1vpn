@@ -76,24 +76,7 @@ export const IconChevron = ({ class: c }: P) => base(c ?? 'list__chevron', <path
 
 export const IconClose = ({ class: c }: P) => base(c, <><path d="M6 6l12 12" /><path d="M18 6L6 18" /></>);
 
-/** Знак Mraz1VPN: «M» из двух лент, как на аватарке бота. Цвета — из токенов. */
+/** Знак Mraz1VPN: хромированная четырёхлучевая звезда (картинка из public/brand). */
 export function Logo({ size = 32 }: { size?: number }) {
-  return (
-    <svg class="logo" width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
-      <defs>
-        <linearGradient id="logo-a" x1="0" y1="0" x2="0.4" y2="1">
-          <stop offset="0" style={{ stopColor: 'var(--color-brand-1)' }} />
-          <stop offset="1" style={{ stopColor: 'var(--color-brand-2)' }} />
-        </linearGradient>
-        <linearGradient id="logo-b" x1="0" y1="0" x2="0.4" y2="1">
-          <stop offset="0" style={{ stopColor: 'var(--color-brand-2)' }} />
-          <stop offset="1" style={{ stopColor: 'var(--color-brand-3)' }} />
-        </linearGradient>
-      </defs>
-      <rect width="64" height="64" rx="16" style={{ fill: 'var(--color-surface-2)' }} />
-      <path d="M38.5 20L46 46" fill="none" stroke="url(#logo-b)" stroke-width="8.5" stroke-linecap="round" />
-      <path d="M38.5 20L32 37" fill="none" stroke="url(#logo-b)" stroke-width="8.5" stroke-linecap="round" />
-      <path d="M18 46L25.5 20L32 37" fill="none" stroke="url(#logo-a)" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round" />
-    </svg>
-  );
+  return <img class="logo" src="/brand/star-logo.png" width={size} height={size} alt="" aria-hidden="true" />;
 }

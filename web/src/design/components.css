@@ -2,6 +2,7 @@
 
 /* ---------- Оболочка ---------- */
 .shell {
+  background: var(--bg-app);
   display: flex;
   flex-direction: column;
   height: var(--tg-viewport-stable-height, 100dvh);
@@ -37,7 +38,7 @@
   height: var(--control-height-s);
   padding: 0 var(--space-3);
   border-radius: var(--radius-pill);
-  border: var(--line);
+  border: var(--line-width) solid var(--color-edge);
   background: var(--color-surface);
   color: var(--color-text);
   font-size: var(--font-size-s);
@@ -95,7 +96,7 @@
 }
 
 .text-gradient {
-  background: var(--gradient-brand);
+  background: var(--gradient-chrome-text);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -106,7 +107,7 @@
   display: flex;
   gap: var(--space-1);
   flex: none;
-  border-top: var(--line);
+  border-top: var(--line-width) solid var(--color-border);
   background: var(--color-surface);
   padding: var(--space-1) var(--space-2) calc(var(--space-1) + var(--safe-bottom));
 }
@@ -155,7 +156,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--gradient-brand);
+  background: var(--gradient-chrome);
   color: var(--color-on-accent);
 }
 
@@ -224,7 +225,7 @@
   height: 22px;
   padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
-  background: var(--gradient-brand);
+  background: var(--gradient-chrome);
   color: var(--color-on-accent);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -233,13 +234,35 @@
 
 /* ---------- Карточка героя ---------- */
 .hero {
-  border: var(--line);
+  position: relative;
+  overflow: hidden;
+  border: var(--line-width) solid var(--color-edge);
   border-radius: var(--radius-l);
   background: var(--gradient-hero);
   padding: var(--space-4);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+/* Хромированная звезда в углу главной карточки — только украшение. */
+.hero--star::before {
+  content: '';
+  position: absolute;
+  top: -34px;
+  right: -34px;
+  width: 168px;
+  height: 168px;
+  background: var(--image-star) center / contain no-repeat;
+  pointer-events: none;
+}
+
+.hero > * {
+  position: relative;
+}
+
+.hero--star .hero__head {
+  padding-right: 84px;
 }
 
 .hero--off {
@@ -339,7 +362,7 @@
 }
 
 .btn--primary {
-  background: var(--gradient-brand) border-box;
+  background: var(--gradient-chrome) border-box;
   color: var(--color-on-accent);
 }
 
@@ -459,7 +482,7 @@
 }
 
 .plan--best {
-  border-color: var(--color-brand-2);
+  border-color: var(--color-edge);
   background: var(--gradient-hero);
 }
 

@@ -216,7 +216,7 @@ export function HomeScreen({
       {greeting}
       {badge}
 
-      <section class={vpn.status === 'expired' ? 'hero hero--off' : 'hero'}>
+      <section class={vpn.status === 'expired' ? 'hero hero--off' : 'hero hero--star'}>
         <div class="hero__head">
           <span class={on ? 'tile' : 'tile tile--muted'}>{on ? <IconShield /> : <IconShieldOff />}</span>
           <div>

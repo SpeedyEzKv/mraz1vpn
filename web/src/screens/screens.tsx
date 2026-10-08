@@ -66,7 +66,7 @@ export function ComponentsScreen({ onBack }: { onBack: () => void }) {
   // Пока шит закрыт, системная «Назад» ведёт из витрины обратно.
   useEffect(() => (sheet ? undefined : bindBackButton(onBack)), [sheet, onBack]);
 
-  const colors = ['bg', 'surface', 'surface-2', 'border', 'text', 'text-secondary', 'brand-1', 'brand-2', 'brand-3', 'accent', 'ok', 'warn', 'off'];
+  const colors = ['bg', 'surface', 'surface-2', 'border', 'text', 'text-secondary', 'chrome', 'chrome-mid', 'accent', 'ok', 'warn', 'off'];
 
   return (
     <Screen title="Компоненты">
@@ -84,7 +84,7 @@ export function ComponentsScreen({ onBack }: { onBack: () => void }) {
       </List>
 
       <Card title="Карточка">
-        <p class="text-secondary">Вторичный текст. Тёмные поверхности, линии 1 px, без теней.</p>
+        <p class="text-secondary">Вторичный текст. Глубокий чёрный, хром, кромка со свечением.</p>
       </Card>
 
       <List title="Список">
