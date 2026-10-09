@@ -85,6 +85,8 @@ export const rotateKey = () => api<Vpn>('/api/vpn/rotate', { method: 'POST' });
 export interface PublicConfig {
   botUsername: string | null;
   supportUsername: string | null;
+  privacyUrl: string | null;
+  termsUrl: string | null;
 }
 
 let publicConfig: Promise<PublicConfig> | null = null;
@@ -93,10 +95,15 @@ let publicConfig: Promise<PublicConfig> | null = null;
 export function getPublicConfig(): Promise<PublicConfig> {
   publicConfig ??= fetch('/api/public-config')
     .then((r) => (r.ok ? r.json() : {}))
-    .then((j: Partial<PublicConfig>) => ({ botUsername: j.botUsername ?? null, supportUsername: j.supportUsername ?? null }))
+    .then((j: Partial<PublicConfig>) => ({
+      botUsername: j.botUsername ?? null,
+      supportUsername: j.supportUsername ?? null,
+      privacyUrl: j.privacyUrl ?? null,
+      termsUrl: j.termsUrl ?? null,
+    }))
     .catch(() => {
       publicConfig = null;
-      return { botUsername: null, supportUsername: null };
+      return { botUsername: null, supportUsername: null, privacyUrl: null, termsUrl: null };
     });
   return publicConfig;
 }

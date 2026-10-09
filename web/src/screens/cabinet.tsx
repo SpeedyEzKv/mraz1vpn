@@ -741,9 +741,13 @@ export function HelpSheet({
 }) {
   const [view, setView] = useState<'menu' | 'broken'>('menu');
   const [support, setSupport] = useState<string | null>(null);
+  const [docs, setDocs] = useState<{ privacyUrl: string | null; termsUrl: string | null }>({ privacyUrl: null, termsUrl: null });
 
   useEffect(() => {
-    getPublicConfig().then((c) => setSupport(c.supportUsername));
+    getPublicConfig().then((c) => {
+      setSupport(c.supportUsername);
+      setDocs({ privacyUrl: c.privacyUrl, termsUrl: c.termsUrl });
+    });
   }, []);
   useEffect(() => {
     if (open) setView('menu');
@@ -773,6 +777,12 @@ export function HelpSheet({
               <IconChat />
               Написать в поддержку
             </Button>
+          )}
+          {(docs.termsUrl || docs.privacyUrl) && (
+            <List title="Документы">
+              {docs.termsUrl && <ListItem title="Пользовательское соглашение" onClick={() => openLink(docs.termsUrl!)} />}
+              {docs.privacyUrl && <ListItem title="Политика конфиденциальности" onClick={() => openLink(docs.privacyUrl!)} />}
+            </List>
           )}
           {me?.isAdmin && (
             <List title="Для администратора">

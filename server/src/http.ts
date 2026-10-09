@@ -18,7 +18,7 @@ declare module 'fastify' {
 type AppConfig = Pick<
   Config,
   'botToken' | 'sessionSecret' | 'sessionTtlSec' | 'initDataMaxAgeSec' | 'adminIds' | 'botUsername'
-> & { supportUsername?: string };
+> & { supportUsername?: string; privacyUrl?: string; termsUrl?: string };
 
 export interface VpnDeps {
   service: VpnService;
@@ -64,6 +64,8 @@ export function buildApp(
   app.get('/api/public-config', async () => ({
     botUsername: config.botUsername,
     supportUsername: config.supportUsername || null,
+    privacyUrl: config.privacyUrl || null,
+    termsUrl: config.termsUrl || null,
   }));
 
   // Вход: initData → проверка подписи → upsert юзера → сессия.

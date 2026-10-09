@@ -49,6 +49,9 @@ export function loadConfig() {
     adminIds: parseIds(optional('ADMIN_IDS', '')),
     // Telegram-username техподдержки (без @). Пусто — кнопки поддержки нет.
     supportUsername: optional('SUPPORT_USERNAME', '').replace(/^@/, ''),
+    // Документы для пользователей и банка: раздел «Поддержка → Документы» в боте и «Помощь» в кабинете.
+    privacyUrl: optional('PRIVACY_URL', 'https://telegra.ph/POLITIKA-KONFIDENCIALNOSTI-08-12-99'),
+    termsUrl: optional('TERMS_URL', 'https://telegra.ph/PUBLICHNAYA-OFERTA-08-12-15'),
     sessionSecret,
     sessionTtlSec: Number(optional('SESSION_TTL_SEC', '3600')),
     initDataMaxAgeSec: Number(optional('INITDATA_MAX_AGE_SEC', '86400')),

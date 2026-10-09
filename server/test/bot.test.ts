@@ -1,7 +1,7 @@
 // Приветствие бота: текст, кнопки, картинка. Telegram подменён — смотрим, что бот отправил бы.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cabinetUrl, createBot, welcomeKeyboard, welcomeText } from '../src/bot.js';
+import { cabinetUrl, CB, createBot, docsKeyboard, supportKeyboard, welcomeKeyboard, welcomeText } from '../src/bot.js';
 import type { VpnSummary } from '../src/vpn/service.js';
 
 const cfg = {
@@ -10,6 +10,8 @@ const cfg = {
   trialDays: 3,
   deviceLimit: 3,
   supportUsername: 'mraz_support',
+  privacyUrl: 'https://example.org/privacy',
+  termsUrl: 'https://example.org/terms',
 };
 const summary = (s: Partial<VpnSummary>): VpnSummary => ({
   status: 'none',
@@ -20,8 +22,8 @@ const summary = (s: Partial<VpnSummary>): VpnSummary => ({
   subscriptionUrl: null,
   ...s,
 });
-type Btn = { text: string; url?: string; web_app?: { url: string } };
-const buttons = (kb: ReturnType<typeof welcomeKeyboard>) => (kb.inline_keyboard.flat() as Btn[]).map((b) => [b.text, b.url ?? b.web_app?.url]);
+type Btn = { text: string; url?: string; web_app?: { url: string }; callback_data?: string };
+const buttons = (kb: ReturnType<typeof welcomeKeyboard>) => (kb.inline_keyboard.flat() as Btn[]).map((b) => [b.text, b.url ?? b.web_app?.url ?? b.callback_data]);
 
 test('новичок: пробный период, оформить, кабинет, подключение, поддержка', () => {
   assert.deepEqual(buttons(welcomeKeyboard(cfg, summary({}))), [
@@ -29,7 +31,7 @@ test('новичок: пробный период, оформить, кабин�
     ['💳 Оформить подписку', 'https://mraz1vpn.online/?screen=plans'],
     ['👤 Личный кабинет', 'https://mraz1vpn.online/'],
     ['❓ Как подключить VPN', 'https://mraz1vpn.online/?screen=connect'],
-    ['🛟 Техподдержка', 'https://t.me/mraz_support'],
+    ['🛟 Поддержка', 'support'],
   ]);
   assert.match(welcomeText({ vpn: summary({}), providers: ['cryptobot'], trialDays: 3, deviceLimit: 3 }), /Попробуйте 3 дня бесплатно/);
 });
@@ -51,9 +53,22 @@ test('способы оплаты в тексте — только подклю�
   assert.doesNotMatch(welcomeText({ vpn: null, providers: [], trialDays: 3, deviceLimit: 3 }), /Оплата/);
 });
 
-test('без username поддержки кнопки поддержки нет', () => {
-  const b = buttons(welcomeKeyboard({ ...cfg, supportUsername: '' }, null)).map((x) => x[0]);
-  assert.ok(!b.includes('🛟 Техподдержка'));
+test('поддержка: написать, документы, назад; документы: соглашение, политика, назад', () => {
+  assert.deepEqual(buttons(supportKeyboard(cfg)), [
+    ['💬 Написать в поддержку', 'https://t.me/mraz_support'],
+    ['📄 Документы', CB.docs],
+    ['↩️ Назад', CB.close],
+  ]);
+  assert.deepEqual(buttons(docsKeyboard(cfg)), [
+    ['📜 Пользовательское соглашение', 'https://example.org/terms'],
+    ['🔒 Политика конфиденциальности', 'https://example.org/privacy'],
+    ['↩️ Назад', CB.back],
+  ]);
+});
+
+test('без username поддержки — только документы', () => {
+  const b = buttons(supportKeyboard({ supportUsername: '' })).map((x) => x[0]);
+  assert.deepEqual(b, ['📄 Документы', '↩️ Назад']);
 });
 
 test('cabinetUrl сохраняет путь и добавляет screen', () => {
@@ -96,4 +111,36 @@ test('/start: фото-баннер с подписью и кнопками; в�
   assert.equal(calls[1]!.payload.photo, 'FILE123', 'второй раз — по file_id');
   const kb = (first.reply_markup as { inline_keyboard: Btn[][] }).inline_keyboard.flat();
   assert.equal(kb.length, 5);
+});
+
+test('кнопки подменю: Поддержка → новое сообщение, Документы ⇄ Назад — правка того же сообщения', async () => {
+  const calls: { method: string; payload: Record<string, unknown> }[] = [];
+  const { bot } = createBot(cfg, {
+    botInfo: {
+      id: 1, is_bot: true, first_name: 'Mraz1VPN', username: 'mraz1vpn_bot',
+      can_join_groups: false, can_read_all_group_messages: false, supports_inline_queries: false,
+      can_connect_to_business: false, has_main_web_app: false,
+    } as never,
+  });
+  bot.api.config.use(async (_prev, method, payload) => {
+    calls.push({ method, payload: payload as Record<string, unknown> });
+    return { ok: true, result: method === 'sendMessage' ? { message_id: 9, date: 0, chat: { id: 5, type: 'private' }, text: 'x' } : true } as never;
+  });
+  const press = (id: number, data: string) =>
+    bot.handleUpdate({
+      update_id: id,
+      callback_query: {
+        id: String(id), chat_instance: 'c', data, from: { id: 5, is_bot: false, first_name: 'A' },
+        message: { message_id: 9, date: 0, chat: { id: 5, type: 'private', first_name: 'A' }, text: 'x' },
+      },
+    } as never);
+  await press(1, CB.support);
+  await press(2, CB.docs);
+  await press(3, CB.back);
+  await press(4, CB.close);
+  const m = calls.filter((c) => c.method !== 'answerCallbackQuery');
+  assert.deepEqual(m.map((c) => c.method), ['sendMessage', 'editMessageText', 'editMessageText', 'deleteMessage']);
+  assert.match(String(m[0]!.payload.text), /Техническая поддержка/);
+  assert.match(String(m[1]!.payload.text), /Документы/);
+  assert.equal(calls.filter((c) => c.method === 'answerCallbackQuery').length, 4, 'кнопки не «висят» с часиками');
 });

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Bot, InlineKeyboard, InputFile } from 'grammy';
+import { Bot, InlineKeyboard, InputFile, type Context } from 'grammy';
 import type { UserFromGetMe } from 'grammy/types';
 import type { Config } from './config.js';
 import { PLANS } from './payments/plans.js';
@@ -13,7 +13,8 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 
 const dateFmt = new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', day: 'numeric', month: 'long' });
 
-type BotConfig = Pick<Config, 'botToken' | 'webAppUrl' | 'trialDays' | 'deviceLimit' | 'supportUsername'>;
+type BotConfig = Pick<Config, 'botToken' | 'webAppUrl' | 'trialDays' | 'deviceLimit' | 'supportUsername'> &
+  Partial<Pick<Config, 'privacyUrl' | 'termsUrl'>>;
 
 export interface WelcomeInput {
   vpn: VpnSummary | null; // null — не удалось узнать (база недоступна): показываем общий текст
@@ -65,7 +66,7 @@ export const cabinetUrl = (base: string, screen?: 'plans' | 'connect' | 'trial')
   return u.toString();
 };
 
-export function welcomeKeyboard(cfg: Pick<BotConfig, 'webAppUrl' | 'supportUsername' | 'trialDays'>, vpn: VpnSummary | null) {
+export function welcomeKeyboard(cfg: Pick<BotConfig, 'webAppUrl' | 'trialDays'>, vpn: VpnSummary | null) {
   const kb = new InlineKeyboard();
   const trial = !vpn || vpn.trialAvailable;
   if (trial) kb.webApp(`🎁 ${days(cfg.trialDays)} бесплатно`, cabinetUrl(cfg.webAppUrl, 'trial')).row();
@@ -73,7 +74,29 @@ export function welcomeKeyboard(cfg: Pick<BotConfig, 'webAppUrl' | 'supportUsern
   kb.webApp(hasSub ? '💳 Продлить подписку' : '💳 Оформить подписку', cabinetUrl(cfg.webAppUrl, 'plans')).row();
   kb.webApp('👤 Личный кабинет', cfg.webAppUrl).row();
   kb.webApp('❓ Как подключить VPN', cabinetUrl(cfg.webAppUrl, 'connect')).row();
-  if (cfg.supportUsername) kb.url('🛟 Техподдержка', `https://t.me/${cfg.supportUsername}`).row();
+  kb.text('🛟 Поддержка', CB.support).row();
+  return kb;
+}
+
+/* ---------- Поддержка: подменю с документами ---------- */
+export const CB = { support: 'support', docs: 'support:docs', back: 'support:back', close: 'support:close' } as const;
+
+export const SUPPORT_TEXT = '🛟 <b>Техническая поддержка</b>\n\nОтветим на вопросы по подключению, оплате и работе VPN.';
+export const DOCS_TEXT = '📄 <b>Документы</b>\n\nПравила сервиса и обработка персональных данных.';
+
+export function supportKeyboard(cfg: Pick<BotConfig, 'supportUsername'>) {
+  const kb = new InlineKeyboard();
+  if (cfg.supportUsername) kb.url('💬 Написать в поддержку', `https://t.me/${cfg.supportUsername}`).row();
+  kb.text('📄 Документы', CB.docs).row();
+  kb.text('↩️ Назад', CB.close);
+  return kb;
+}
+
+export function docsKeyboard(cfg: Pick<BotConfig, 'privacyUrl' | 'termsUrl'>) {
+  const kb = new InlineKeyboard();
+  if (cfg.termsUrl) kb.url('📜 Пользовательское соглашение', cfg.termsUrl).row();
+  if (cfg.privacyUrl) kb.url('🔒 Политика конфиденциальности', cfg.privacyUrl).row();
+  kb.text('↩️ Назад', CB.back);
   return kb;
 }
 
@@ -135,13 +158,29 @@ export function createBot(
     bannerFileId ??= msg.photo.at(-1)?.file_id ?? null;
   });
 
-  if (config.supportUsername) {
-    bot.command('support', (ctx) =>
-      ctx.reply(`Напишите нам: @${config.supportUsername} — ответим как можно скорее.`, {
-        reply_markup: new InlineKeyboard().url('🛟 Написать в поддержку', `https://t.me/${config.supportUsername}`),
-      }),
-    );
-  }
+  const sendSupport = (ctx: Context) =>
+    ctx.reply(SUPPORT_TEXT, { parse_mode: 'HTML', reply_markup: supportKeyboard(config) });
+
+  bot.command('support', (ctx) => sendSupport(ctx));
+
+  // Кнопки подменю. Сообщение поддержки редактируется на месте: Поддержка ⇄ Документы.
+  bot.callbackQuery(CB.support, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await sendSupport(ctx);
+  });
+  bot.callbackQuery(CB.docs, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(DOCS_TEXT, { parse_mode: 'HTML', reply_markup: docsKeyboard(config) });
+  });
+  bot.callbackQuery(CB.back, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(SUPPORT_TEXT, { parse_mode: 'HTML', reply_markup: supportKeyboard(config) });
+  });
+  bot.callbackQuery(CB.close, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    // «Назад» из поддержки: убираем подменю, главное меню остаётся выше.
+    await ctx.deleteMessage().catch(() => ctx.editMessageReplyMarkup({ reply_markup: undefined }));
+  });
 
   // На любое другое сообщение — короткая подсказка с кнопками.
   bot.on('message', (ctx) =>
@@ -156,7 +195,7 @@ export function createBot(
   async function setupProfile() {
     await bot.api.setMyCommands([
       { command: 'start', description: 'Главное меню' },
-      ...(config.supportUsername ? [{ command: 'support', description: 'Техподдержка' }] : []),
+      { command: 'support', description: 'Поддержка и документы' },
     ]);
     await bot.api.setChatMenuButton({
       menu_button: { type: 'web_app', text: 'Кабинет', web_app: { url: config.webAppUrl } },
