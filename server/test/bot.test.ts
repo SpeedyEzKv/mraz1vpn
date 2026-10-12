@@ -1,7 +1,7 @@
 // Приветствие бота: текст, кнопки, картинка. Telegram подменён — смотрим, что бот отправил бы.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cabinetUrl, CB, createBot, docsKeyboard, supportKeyboard, welcomeKeyboard, welcomeText } from '../src/bot.js';
+import { cabinetUrl, CB, createBot, docsKeyboard, supportKeyboard, tariffLines, tariffsKeyboard, tariffsText, welcomeKeyboard, welcomeText } from '../src/bot.js';
 import type { VpnSummary } from '../src/vpn/service.js';
 
 const cfg = {
@@ -25,12 +25,13 @@ const summary = (s: Partial<VpnSummary>): VpnSummary => ({
 type Btn = { text: string; url?: string; web_app?: { url: string }; callback_data?: string };
 const buttons = (kb: ReturnType<typeof welcomeKeyboard>) => (kb.inline_keyboard.flat() as Btn[]).map((b) => [b.text, b.url ?? b.web_app?.url ?? b.callback_data]);
 
-test('новичок: пробный период, оформить, кабинет, подключение, поддержка', () => {
+test('новичок: пробный период, оформить, кабинет, подключение, тарифы, поддержка', () => {
   assert.deepEqual(buttons(welcomeKeyboard(cfg, summary({}))), [
     ['🎁 3 дня бесплатно', 'https://mraz1vpn.online/?screen=trial'],
     ['💳 Оформить подписку', 'https://mraz1vpn.online/?screen=plans'],
     ['👤 Личный кабинет', 'https://mraz1vpn.online/'],
     ['❓ Как подключить VPN', 'https://mraz1vpn.online/?screen=connect'],
+    ['💰 Тарифы', CB.tariffs],
     ['🛟 Поддержка', 'support'],
   ]);
   assert.match(welcomeText({ vpn: summary({}), providers: ['cryptobot'], trialDays: 3, deviceLimit: 3 }), /Попробуйте 3 дня бесплатно/);
@@ -110,7 +111,7 @@ test('/start: фото-баннер с подписью и кнопками; в�
   assert.ok(typeof first.photo === 'object', 'первый раз — загрузка файла');
   assert.equal(calls[1]!.payload.photo, 'FILE123', 'второй раз — по file_id');
   const kb = (first.reply_markup as { inline_keyboard: Btn[][] }).inline_keyboard.flat();
-  assert.equal(kb.length, 5);
+  assert.equal(kb.length, 6);
 });
 
 test('кнопки подменю: Поддержка → новое сообщение, Документы ⇄ Назад — правка того же сообщения', async () => {
@@ -143,4 +144,65 @@ test('кнопки подменю: Поддержка → новое сообщ�
   assert.match(String(m[0]!.payload.text), /Техническая поддержка/);
   assert.match(String(m[1]!.payload.text), /Документы/);
   assert.equal(calls.filter((c) => c.method === 'answerCallbackQuery').length, 4, 'кнопки не «висят» с часиками');
+});
+
+test('тарифы: все цены, цена за месяц и выгода считаются из PLANS', () => {
+  assert.deepEqual(tariffLines(), [
+    '• <b>1 месяц</b> — 100 ₽',
+    '• <b>3 месяца</b> — 249 ₽ (83 ₽/мес, выгода 17%)',
+    '• <b>6 месяцев</b> — 449 ₽ (75 ₽/мес, выгода 25%)',
+    '• <b>1 год</b> — 799 ₽ (67 ₽/мес, выгода 33%)',
+  ]);
+});
+
+test('тарифы: условия, пробный период, способы оплаты, без автопродления', () => {
+  const t = tariffsText({ providers: ['yookassa', 'cryptobot'], trialDays: 3, deviceLimit: 3 });
+  assert.match(t, /Тарифы Mraz1VPN/);
+  assert.match(t, /до 3 устройств одновременно/);
+  assert.match(t, /3 дня бесплатно/);
+  assert.match(t, /картой и по СБП \(ЮKassa\) или криптовалютой/);
+  assert.match(t, /не продлевается автоматически/);
+  assert.doesNotMatch(tariffsText({ providers: [], trialDays: 3, deviceLimit: 3 }), /Оплата/);
+  assert.deepEqual(buttons(tariffsKeyboard(cfg)), [
+    ['💳 Оформить подписку', 'https://mraz1vpn.online/?screen=plans'],
+    ['📜 Пользовательское соглашение', 'https://example.org/terms'],
+    ['↩️ Назад', CB.close],
+  ]);
+});
+
+test('кнопка «Тарифы» и /tariffs отправляют сообщение с ценами', async () => {
+  const calls: { method: string; payload: Record<string, unknown> }[] = [];
+  const { bot } = createBot(cfg, {
+    providers: () => ['yookassa'],
+    botInfo: {
+      id: 1, is_bot: true, first_name: 'Mraz1VPN', username: 'mraz1vpn_bot',
+      can_join_groups: false, can_read_all_group_messages: false, supports_inline_queries: false,
+      can_connect_to_business: false, has_main_web_app: false,
+    } as never,
+  });
+  bot.api.config.use(async (_prev, method, payload) => {
+    calls.push({ method, payload: payload as Record<string, unknown> });
+    return { ok: true, result: method === 'sendMessage' ? { message_id: 9, date: 0, chat: { id: 5, type: 'private' }, text: 'x' } : true } as never;
+  });
+  await bot.handleUpdate({
+    update_id: 1,
+    callback_query: {
+      id: '1', chat_instance: 'c', data: CB.tariffs, from: { id: 5, is_bot: false, first_name: 'A' },
+      message: { message_id: 9, date: 0, chat: { id: 5, type: 'private', first_name: 'A' }, text: 'x' },
+    },
+  } as never);
+  await bot.handleUpdate({
+    update_id: 2,
+    message: {
+      message_id: 2, date: 0, chat: { id: 5, type: 'private', first_name: 'A' },
+      from: { id: 5, is_bot: false, first_name: 'A' }, text: '/tariffs',
+      entities: [{ type: 'bot_command', offset: 0, length: 8 }],
+    },
+  } as never);
+  const sent = calls.filter((c) => c.method === 'sendMessage');
+  assert.equal(sent.length, 2);
+  for (const c of sent) {
+    assert.match(String(c.payload.text), /1 год<\/b> — 799 ₽/);
+    assert.equal(c.payload.parse_mode, 'HTML');
+  }
 });

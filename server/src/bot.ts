@@ -74,12 +74,61 @@ export function welcomeKeyboard(cfg: Pick<BotConfig, 'webAppUrl' | 'trialDays'>,
   kb.webApp(hasSub ? '💳 Продлить подписку' : '💳 Оформить подписку', cabinetUrl(cfg.webAppUrl, 'plans')).row();
   kb.webApp('👤 Личный кабинет', cfg.webAppUrl).row();
   kb.webApp('❓ Как подключить VPN', cabinetUrl(cfg.webAppUrl, 'connect')).row();
+  kb.text('💰 Тарифы', CB.tariffs).row();
   kb.text('🛟 Поддержка', CB.support).row();
   return kb;
 }
 
+/* ---------- Тарифы: цены и условия открыто, до оплаты (требование платёжной системы) ---------- */
+const rub = (kop: number) => `${Math.round(kop / 100)} ₽`;
+
+/** Строки тарифов из PLANS: цена, цена за месяц и выгода относительно помесячной оплаты. */
+export function tariffLines(): string[] {
+  const base = PLANS.find((p) => p.months === 1);
+  return PLANS.map((p) => {
+    const line = `• <b>${esc(p.title)}</b> — ${rub(p.priceKop)}`;
+    if (!base || p.months <= 1) return line;
+    const perMonth = Math.round(p.priceKop / p.months / 100);
+    const saving = Math.round((1 - p.priceKop / (base.priceKop * p.months)) * 100);
+    return saving > 0 ? `${line} (${perMonth} ₽/мес, выгода ${saving}%)` : line;
+  });
+}
+
+export function tariffsText(w: Pick<WelcomeInput, 'providers' | 'trialDays' | 'deviceLimit'>): string {
+  const pay = [
+    w.providers.includes('yookassa') ? 'банковской картой и по СБП (ЮKassa)' : null,
+    w.providers.includes('cryptobot') ? 'криптовалютой (CryptoBot)' : null,
+  ].filter(Boolean);
+  const devices = `${w.deviceLimit} ${plural(w.deviceLimit, 'устройства', 'устройств', 'устройств')}`;
+  return [
+    '💰 <b>Тарифы Mraz1VPN</b>',
+    '',
+    ...tariffLines(),
+    '',
+    '<b>В любой тариф входит:</b>',
+    '— доступ к VPN-серверу в Нидерландах',
+    '— без ограничений по скорости и трафику',
+    `— до ${devices} одновременно`,
+    '',
+    `🎁 Новым пользователям — ${days(w.trialDays)} бесплатно, без оплаты.`,
+    ...(pay.length ? [`💳 Оплата ${pay.join(' или ')}. Цены указаны в рублях.`] : []),
+    '⚡️ Доступ открывается сразу после оплаты.',
+    '🔁 Подписка не продлевается автоматически: деньги не списываются без вашего действия.',
+    '',
+    'Подробные условия — в пользовательском соглашении.',
+  ].join('\n');
+}
+
+export function tariffsKeyboard(cfg: Pick<BotConfig, 'webAppUrl'> & Partial<Pick<BotConfig, 'termsUrl'>>) {
+  const kb = new InlineKeyboard();
+  kb.webApp('💳 Оформить подписку', cabinetUrl(cfg.webAppUrl, 'plans')).row();
+  if (cfg.termsUrl) kb.url('📜 Пользовательское соглашение', cfg.termsUrl).row();
+  kb.text('↩️ Назад', CB.close);
+  return kb;
+}
+
 /* ---------- Поддержка: подменю с документами ---------- */
-export const CB = { support: 'support', docs: 'support:docs', back: 'support:back', close: 'support:close' } as const;
+export const CB = { tariffs: 'tariffs', support: 'support', docs: 'support:docs', back: 'support:back', close: 'support:close' } as const;
 
 export const SUPPORT_TEXT = '🛟 <b>Техническая поддержка</b>\n\nОтветим на вопросы по подключению, оплате и работе VPN.';
 export const DOCS_TEXT = '📄 <b>Документы</b>\n\nПравила сервиса и обработка персональных данных.';
@@ -163,6 +212,18 @@ export function createBot(
 
   bot.command('support', (ctx) => sendSupport(ctx));
 
+  const sendTariffs = (ctx: Context) =>
+    ctx.reply(
+      tariffsText({ providers: deps.providers?.() ?? [], trialDays: config.trialDays, deviceLimit: config.deviceLimit }),
+      { parse_mode: 'HTML', reply_markup: tariffsKeyboard(config) },
+    );
+
+  bot.command('tariffs', (ctx) => sendTariffs(ctx));
+  bot.callbackQuery(CB.tariffs, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await sendTariffs(ctx);
+  });
+
   // Кнопки подменю. Сообщение поддержки редактируется на месте: Поддержка ⇄ Документы.
   bot.callbackQuery(CB.support, async (ctx) => {
     await ctx.answerCallbackQuery();
@@ -178,7 +239,7 @@ export function createBot(
   });
   bot.callbackQuery(CB.close, async (ctx) => {
     await ctx.answerCallbackQuery();
-    // «Назад» из поддержки: убираем подменю, главное меню остаётся выше.
+    // «Назад» из поддержки и тарифов: убираем подменю, главное меню остаётся выше.
     await ctx.deleteMessage().catch(() => ctx.editMessageReplyMarkup({ reply_markup: undefined }));
   });
 
@@ -195,6 +256,7 @@ export function createBot(
   async function setupProfile() {
     await bot.api.setMyCommands([
       { command: 'start', description: 'Главное меню' },
+      { command: 'tariffs', description: 'Тарифы и цены' },
       { command: 'support', description: 'Поддержка и документы' },
     ]);
     await bot.api.setChatMenuButton({
