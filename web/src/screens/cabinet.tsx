@@ -286,9 +286,24 @@ const PROVIDER_LABEL: Record<Provider, { title: string; hint: string }> = {
   cryptobot: { title: 'Криптовалюта', hint: 'USDT, TON и другие через @CryptoBot' },
 };
 
-export function PlansScreen({ vpn, onVpn, onConnect, catalog }: VpnProps & { catalog: Catalog | null }) {
+export function PlansScreen({
+  vpn,
+  onVpn,
+  onConnect,
+  catalog,
+  initialPlanId = null,
+}: VpnProps & { catalog: Catalog | null; initialPlanId?: string | null }) {
   const [plan, setPlan] = useState<Plan | null>(null);
   const closePay = useCallback(() => setPlan(null), []);
+
+  // Пришли из бота кнопкой конкретного тарифа — открываем его оплату один раз, когда загрузился каталог.
+  const [initialDone, setInitialDone] = useState(!initialPlanId);
+  useEffect(() => {
+    if (initialDone || !catalog) return;
+    const p = catalog.plans.find((x) => x.id === initialPlanId);
+    if (p && catalog.providers.length > 0) setPlan(p);
+    setInitialDone(true);
+  }, [initialDone, catalog, initialPlanId]);
   const trial = useTrial(onVpn, onConnect);
   const best = catalog?.plans.reduce<Plan | null>((b, p) => (!b || p.discountPct > b.discountPct ? p : b), null);
 

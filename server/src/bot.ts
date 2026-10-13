@@ -59,10 +59,11 @@ export function welcomeText(w: WelcomeInput): string {
 }
 
 /** Ссылка на кабинет с нужным экраном: кабинет читает ?screen= при открытии. */
-export const cabinetUrl = (base: string, screen?: 'plans' | 'connect' | 'trial') => {
+export const cabinetUrl = (base: string, screen?: 'plans' | 'connect' | 'trial', plan?: string) => {
   if (!screen) return base;
   const u = new URL(base);
   u.searchParams.set('screen', screen);
+  if (plan) u.searchParams.set('plan', plan); // кабинет сразу откроет оплату этого тарифа
   return u.toString();
 };
 
@@ -82,17 +83,18 @@ export function welcomeKeyboard(cfg: Pick<BotConfig, 'webAppUrl' | 'trialDays'>,
 /* ---------- Тарифы: цены и условия открыто, до оплаты (требование платёжной системы) ---------- */
 const rub = (kop: number) => `${Math.round(kop / 100)} ₽`;
 
-/** Строки тарифов из PLANS: цена, цена за месяц и выгода относительно помесячной оплаты. */
-export function tariffLines(): string[] {
-  const base = PLANS.find((p) => p.months === 1);
-  return PLANS.map((p) => {
-    const line = `• <b>${esc(p.title)}</b> — ${rub(p.priceKop)}`;
-    if (!base || p.months <= 1) return line;
-    const perMonth = Math.round(p.priceKop / p.months / 100);
-    const saving = Math.round((1 - p.priceKop / (base.priceKop * p.months)) * 100);
-    return saving > 0 ? `${line} (${perMonth} ₽/мес, выгода ${saving}%)` : line;
-  });
+/** Выгода в % относительно помесячной оплаты (0 для месячного тарифа). */
+export function planSaving(p: (typeof PLANS)[number]): number {
+  const base = PLANS.find((x) => x.months === 1);
+  if (!base || p.months <= 1) return 0;
+  return Math.max(0, Math.round((1 - p.priceKop / (base.priceKop * p.months)) * 100));
 }
+
+/** Подпись кнопки тарифа: «3 месяца — 249 ₽ · выгода 17%». */
+export const tariffButtonText = (p: (typeof PLANS)[number]) => {
+  const saving = planSaving(p);
+  return `${p.title} — ${rub(p.priceKop)}${saving > 0 ? ` · выгода ${saving}%` : ''}`;
+};
 
 export function tariffsText(w: Pick<WelcomeInput, 'providers' | 'trialDays' | 'deviceLimit'>): string {
   const pay = [
@@ -102,8 +104,6 @@ export function tariffsText(w: Pick<WelcomeInput, 'providers' | 'trialDays' | 'd
   const devices = `${w.deviceLimit} ${plural(w.deviceLimit, 'устройства', 'устройств', 'устройств')}`;
   return [
     '💰 <b>Тарифы Mraz1VPN</b>',
-    '',
-    ...tariffLines(),
     '',
     '<b>В любой тариф входит:</b>',
     '— доступ к VPN-серверу в Нидерландах',
@@ -116,12 +116,15 @@ export function tariffsText(w: Pick<WelcomeInput, 'providers' | 'trialDays' | 'd
     '🔁 Подписка не продлевается автоматически: деньги не списываются без вашего действия.',
     '',
     'Подробные условия — в пользовательском соглашении.',
+    '',
+    '<b>Выберите тариф 👇</b>',
   ].join('\n');
 }
 
 export function tariffsKeyboard(cfg: Pick<BotConfig, 'webAppUrl'> & Partial<Pick<BotConfig, 'termsUrl'>>) {
   const kb = new InlineKeyboard();
-  kb.webApp('💳 Оформить подписку', cabinetUrl(cfg.webAppUrl, 'plans')).row();
+  // Каждый тариф — своя кнопка: кабинет откроется сразу на оплате выбранного тарифа.
+  for (const p of PLANS) kb.webApp(tariffButtonText(p), cabinetUrl(cfg.webAppUrl, 'plans', p.id)).row();
   if (cfg.termsUrl) kb.url('📜 Пользовательское соглашение', cfg.termsUrl).row();
   kb.text('↩️ Назад', CB.close);
   return kb;

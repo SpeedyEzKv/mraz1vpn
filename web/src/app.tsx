@@ -7,6 +7,8 @@ import { AuthFailedScreen, ComponentsScreen, OfflineScreen, OpenAppScreen, Outsi
 
 /** Экран, который просили открыть кнопкой из бота: ?screen=plans|connect|trial. Читается один раз. */
 const requestedScreen = new URLSearchParams(window.location.search).get('screen');
+/** Тариф, выбранный кнопкой в боте: ?plan=m3 — сразу открываем его оплату. */
+const requestedPlan = requestedScreen === 'plans' ? new URLSearchParams(window.location.search).get('plan') : null;
 type Status = 'loading' | 'ready' | 'auth_failed' | 'offline';
 
 const TABS: { id: Tab; label: string; Icon: typeof IconHome }[] = [
@@ -106,7 +108,7 @@ function Cabinet() {
         ) : tab === 'home' ? (
           <HomeScreen {...vpnProps} me={me} onGo={selectTab} catalog={catalog} referrals={referrals} />
         ) : tab === 'plans' ? (
-          <PlansScreen {...vpnProps} catalog={catalog} />
+          <PlansScreen {...vpnProps} catalog={catalog} initialPlanId={requestedPlan} />
         ) : tab === 'devices' ? (
           <DevicesScreen {...vpnProps} onGo={selectTab} />
         ) : (

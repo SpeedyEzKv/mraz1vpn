@@ -1,7 +1,7 @@
 // Приветствие бота: текст, кнопки, картинка. Telegram подменён — смотрим, что бот отправил бы.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cabinetUrl, CB, createBot, docsKeyboard, supportKeyboard, tariffLines, tariffsKeyboard, tariffsText, welcomeKeyboard, welcomeText } from '../src/bot.js';
+import { cabinetUrl, CB, createBot, docsKeyboard, supportKeyboard, tariffsKeyboard, tariffsText, welcomeKeyboard, welcomeText } from '../src/bot.js';
 import type { VpnSummary } from '../src/vpn/service.js';
 
 const cfg = {
@@ -146,16 +146,7 @@ test('кнопки подменю: Поддержка → новое сообщ�
   assert.equal(calls.filter((c) => c.method === 'answerCallbackQuery').length, 4, 'кнопки не «висят» с часиками');
 });
 
-test('тарифы: все цены, цена за месяц и выгода считаются из PLANS', () => {
-  assert.deepEqual(tariffLines(), [
-    '• <b>1 месяц</b> — 100 ₽',
-    '• <b>3 месяца</b> — 249 ₽ (83 ₽/мес, выгода 17%)',
-    '• <b>6 месяцев</b> — 449 ₽ (75 ₽/мес, выгода 25%)',
-    '• <b>1 год</b> — 799 ₽ (67 ₽/мес, выгода 33%)',
-  ]);
-});
-
-test('тарифы: условия, пробный период, способы оплаты, без автопродления', () => {
+test('тарифы: условия в тексте, каждый тариф — отдельная кнопка с ценой', () => {
   const t = tariffsText({ providers: ['yookassa', 'cryptobot'], trialDays: 3, deviceLimit: 3 });
   assert.match(t, /Тарифы Mraz1VPN/);
   assert.match(t, /до 3 устройств одновременно/);
@@ -163,8 +154,12 @@ test('тарифы: условия, пробный период, способы 
   assert.match(t, /картой и по СБП \(ЮKassa\) или криптовалютой/);
   assert.match(t, /не продлевается автоматически/);
   assert.doesNotMatch(tariffsText({ providers: [], trialDays: 3, deviceLimit: 3 }), /Оплата/);
+  assert.match(t, /Выберите тариф/);
   assert.deepEqual(buttons(tariffsKeyboard(cfg)), [
-    ['💳 Оформить подписку', 'https://mraz1vpn.online/?screen=plans'],
+    ['1 месяц — 100 ₽', 'https://mraz1vpn.online/?screen=plans&plan=m1'],
+    ['3 месяца — 249 ₽ · выгода 17%', 'https://mraz1vpn.online/?screen=plans&plan=m3'],
+    ['6 месяцев — 449 ₽ · выгода 25%', 'https://mraz1vpn.online/?screen=plans&plan=m6'],
+    ['1 год — 799 ₽ · выгода 33%', 'https://mraz1vpn.online/?screen=plans&plan=y1'],
     ['📜 Пользовательское соглашение', 'https://example.org/terms'],
     ['↩️ Назад', CB.close],
   ]);
@@ -202,7 +197,9 @@ test('кнопка «Тарифы» и /tariffs отправляют сообщ�
   const sent = calls.filter((c) => c.method === 'sendMessage');
   assert.equal(sent.length, 2);
   for (const c of sent) {
-    assert.match(String(c.payload.text), /1 год<\/b> — 799 ₽/);
+    assert.match(String(c.payload.text), /Тарифы Mraz1VPN/);
+    const kb = (c.payload.reply_markup as { inline_keyboard: Btn[][] }).inline_keyboard.flat().map((x) => x.text);
+    assert.ok(kb.includes('1 год — 799 ₽ · выгода 33%'));
     assert.equal(c.payload.parse_mode, 'HTML');
   }
 });
