@@ -5,6 +5,7 @@ import {
   IconBolt,
   IconChat,
   IconCheck,
+  IconChevron,
   IconCopy,
   IconDevices,
   IconGift,
@@ -334,12 +335,21 @@ export function PlansScreen({
       ) : (
         <div class="plans" id="plans">
           {catalog.plans.map((p) => (
-            <button key={p.id} type="button" class={p === best && p.discountPct > 0 ? 'plan plan--best' : 'plan'} onClick={() => setPlan(p)}>
+            // Каждый тариф — отдельная кнопка во всю ширину, как в боте: срок слева, цена справа.
+            <button
+              key={p.id}
+              type="button"
+              class={p === best && p.discountPct > 0 ? 'plan plan--best' : 'plan'}
+              onClick={() => setPlan(p)}
+              aria-label={`${vpn && vpn.status !== 'none' ? 'Продлить' : 'Купить'}: ${p.title} за ${formatRub(p.priceRub)}`}
+            >
+              <span class="plan__info">
+                <span class="plan__title">{p.title}</span>
+                <span class="plan__per">{p.discountPct > 0 ? `≈ ${formatRub(Math.round(p.perMonthRub))} в месяц` : 'за 30 дней'}</span>
+              </span>
               {p.discountPct > 0 && <span class="chip">−{p.discountPct}%</span>}
-              <span class="plan__title">{p.title}</span>
               <span class="plan__price">{formatRub(p.priceRub)}</span>
-              <span class="plan__per">{p.discountPct > 0 ? `≈ ${formatRub(Math.round(p.perMonthRub))} в месяц` : 'за 30 дней'}</span>
-              <span class="plan__cta">{vpn && vpn.status !== 'none' ? 'Продлить' : 'Купить'}</span>
+              <IconChevron class="plan__chevron" />
             </button>
           ))}
         </div>

@@ -457,22 +457,23 @@
 
 /* ---------- Тарифы ---------- */
 .plans {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
 }
 
+/* Тариф — кнопка во всю ширину: срок и цена за месяц слева, скидка и цена справа. */
 .plan {
-  position: relative;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
-  min-width: 0;
-  padding: var(--space-4) var(--space-3) var(--space-3);
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 64px;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
   border: var(--line);
   border-radius: var(--radius-l);
   background: var(--color-surface);
+  color: var(--color-text);
   text-align: left;
   cursor: pointer;
 }
@@ -486,15 +487,17 @@
   background: var(--gradient-hero);
 }
 
-.plan__title {
-  font-size: var(--font-size-s);
-  color: var(--color-text-secondary);
-  font-weight: var(--font-weight-medium);
+.plan__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.plan__price {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
+.plan__title {
+  font-size: var(--font-size-l);
+  font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
 }
 
@@ -503,17 +506,17 @@
   color: var(--color-text-secondary);
 }
 
-.plan .chip {
-  position: absolute;
-  top: var(--space-3);
-  right: var(--space-3);
+.plan__price {
+  font-size: var(--font-size-l);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
 }
 
-.plan__cta {
-  margin-top: var(--space-2);
-  font-size: var(--font-size-s);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-accent);
+.plan__chevron {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--color-text-secondary);
 }
 
 /* ---------- Список ---------- */
