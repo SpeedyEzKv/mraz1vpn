@@ -296,6 +296,8 @@ export function PlansScreen({
 }: VpnProps & { catalog: Catalog | null; initialPlanId?: string | null }) {
   const [plan, setPlan] = useState<Plan | null>(null);
   const closePay = useCallback(() => setPlan(null), []);
+  const [noPay, setNoPay] = useState(false);
+  const closeNoPay = useCallback(() => setNoPay(false), []);
 
   // Пришли из бота кнопкой конкретного тарифа — открываем его оплату один раз, когда загрузился каталог.
   const [initialDone, setInitialDone] = useState(!initialPlanId);
@@ -328,11 +330,8 @@ export function PlansScreen({
 
       {!catalog ? (
         <Skeleton height={260} />
-      ) : catalog.providers.length === 0 ? (
-        <Card title="Оплата скоро появится">
-          <p class="text-secondary">Приём платежей ещё настраивается. Напишите в поддержку — поможем оформить подписку.</p>
-        </Card>
       ) : (
+        // Тарифы и цены видны всегда, даже пока приём платежей не подключён.
         <div class="plans" id="plans">
           {catalog.plans.map((p) => (
             // Каждый тариф — отдельная кнопка во всю ширину, как в боте: срок слева, цена справа.
@@ -340,7 +339,7 @@ export function PlansScreen({
               key={p.id}
               type="button"
               class={p === best && p.discountPct > 0 ? 'plan plan--best' : 'plan'}
-              onClick={() => setPlan(p)}
+              onClick={() => (catalog.providers.length > 0 ? setPlan(p) : setNoPay(true))}
               aria-label={`${vpn && vpn.status !== 'none' ? 'Продлить' : 'Купить'}: ${p.title} за ${formatRub(p.priceRub)}`}
             >
               <span class="plan__info">
@@ -367,6 +366,13 @@ export function PlansScreen({
       )}
 
       {catalog && <PaySheet plan={plan} providers={catalog.providers} onClose={closePay} onPaid={onVpn} />}
+
+      <Sheet open={noPay} title="Оплата скоро появится" onClose={closeNoPay}>
+        <p class="text-secondary">Приём платежей ещё настраивается. Напишите в поддержку — поможем оформить подписку.</p>
+        <Button block variant="secondary" onClick={closeNoPay}>
+          Понятно
+        </Button>
+      </Sheet>
     </Screen>
   );
 }
