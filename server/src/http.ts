@@ -135,13 +135,6 @@ export function buildApp(
 
   const payments = opts.payments;
   if (payments) {
-    // Вебхук ЮKassa. Телу не доверяем: сервис перезапросит платёж у ЮKassa по id.
-    // Ошибка → 500, ЮKassa повторит уведомление позже.
-    app.post('/pay/yookassa', async (req, reply) => {
-      await payments.service.onYooKassaWebhook(req.body);
-      return reply.code(200).send({ ok: true });
-    });
-
     // Вебхук CryptoBot: подпись считается по сырому телу, поэтому JSON здесь не разбираем заранее.
     app.register(async (raw) => {
       raw.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => done(null, body));

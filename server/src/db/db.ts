@@ -43,7 +43,7 @@ export interface VpnKeysTable {
 export interface PaymentsTable {
   id: Generated<number>;
   user_id: number;
-  provider: 'yookassa' | 'cryptobot';
+  provider: 'yookassa' | 'cryptobot'; // yookassa — только в старых записях, приём отключён
   plan: string;
   days: number;
   amount_kop: number;

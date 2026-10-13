@@ -29,7 +29,6 @@ export const minMonthlyRub = () => Math.min(...PLANS.map((p) => Math.round(p.pri
 /** Текст приветствия (HTML). Только правда о сервисе: одна страна, лимит устройств из настроек. */
 export function welcomeText(w: WelcomeInput): string {
   const pay = [
-    w.providers.includes('yookassa') ? 'картой и по СБП' : null,
     w.providers.includes('cryptobot') ? 'криптовалютой' : null,
   ].filter(Boolean);
 
@@ -98,7 +97,6 @@ export const tariffButtonText = (p: (typeof PLANS)[number]) => {
 
 export function tariffsText(w: Pick<WelcomeInput, 'providers' | 'trialDays' | 'deviceLimit'>): string {
   const pay = [
-    w.providers.includes('yookassa') ? 'банковской картой и по СБП (ЮKassa)' : null,
     w.providers.includes('cryptobot') ? 'криптовалютой (CryptoBot)' : null,
   ].filter(Boolean);
   const devices = `${w.deviceLimit} ${plural(w.deviceLimit, 'устройства', 'устройств', 'устройств')}`;

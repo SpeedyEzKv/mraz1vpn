@@ -110,7 +110,7 @@ export function getPublicConfig(): Promise<PublicConfig> {
 
 export const getBotUsername = () => getPublicConfig().then((c) => c.botUsername);
 
-export type Provider = 'yookassa' | 'cryptobot';
+export type Provider = 'cryptobot';
 
 export interface Plan {
   id: string;

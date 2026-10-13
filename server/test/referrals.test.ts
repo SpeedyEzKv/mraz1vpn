@@ -41,7 +41,6 @@ before(async () => {
   referrals = createReferrals({ dbs: t.dbs, botUsername: 'mraz1vpn_bot', bonusDays: 7 });
   payments = createPaymentService({
     dbs: t.dbs,
-    yookassa: null,
     cryptobot: cb,
     domain: 'mraz1vpn.online',
     botUsername: 'mraz1vpn_bot',

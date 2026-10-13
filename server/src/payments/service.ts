@@ -1,8 +1,8 @@
 // Оплата: создать платёж у провайдера, принять подтверждение, продлить подписку ровно один раз.
 //
 // Доверяем только самому провайдеру:
-//  - ЮKassa: на вебхук не полагаемся — по id из него перезапрашиваем платёж через API своим ключом;
 //  - CryptoBot: вебхук с проверенной подписью (HMAC по токену), плюс перезапрос при сверке.
+// Новый провайдер (RollyPay) добавляется сюда же: тип Provider, ветка в create, обработчик подтверждения.
 // Если вебхук потерялся, раз в минуту сверка опрашивает провайдера по всем ожидающим платежам.
 
 import { sql } from 'kysely';
@@ -11,9 +11,8 @@ import type { Logger } from '../vpn/service.js';
 import { grantDays } from '../vpn/grant.js';
 import type { CryptoBotApi, CryptoInvoice } from './cryptobot.js';
 import { findPlan, kopToRub, paymentDescription, PLANS } from './plans.js';
-import type { YooKassaApi, YooPayment } from './yookassa.js';
 
-export type Provider = 'yookassa' | 'cryptobot';
+export type Provider = 'cryptobot';
 
 export class PaymentError extends Error {
   constructor(readonly code: 'bad_plan' | 'provider_unavailable' | 'too_many' | 'provider_failed') {
@@ -27,7 +26,6 @@ export interface Notifier {
 
 export function createPaymentService(deps: {
   dbs: Databases;
-  yookassa: YooKassaApi | null;
   cryptobot: CryptoBotApi | null;
   domain: string;
   botUsername: string;
@@ -40,9 +38,7 @@ export function createPaymentService(deps: {
   const { dbs, log } = deps;
 
   const providers = (): Provider[] =>
-    [deps.yookassa ? ('yookassa' as const) : null, deps.cryptobot ? ('cryptobot' as const) : null].filter(
-      (p): p is Provider => p !== null,
-    );
+    [deps.cryptobot ? ('cryptobot' as const) : null].filter((p): p is Provider => p !== null);
 
   function catalog() {
     const base = PLANS[0]!;
@@ -64,7 +60,7 @@ export function createPaymentService(deps: {
   async function create(userId: number, planId: unknown, provider: unknown) {
     const plan = findPlan(planId);
     if (!plan) throw new PaymentError('bad_plan');
-    if (provider !== 'yookassa' && provider !== 'cryptobot') throw new PaymentError('provider_unavailable');
+    if (provider !== 'cryptobot') throw new PaymentError('provider_unavailable');
     if (!providers().includes(provider)) throw new PaymentError('provider_unavailable');
 
     // От случайных серий нажатий и перебора: не больше 10 незавершённых платежей за час.
@@ -96,18 +92,7 @@ export function createPaymentService(deps: {
     let providerId: string;
     let url: string;
     try {
-      if (provider === 'yookassa') {
-        const p = await deps.yookassa!.createPayment({
-          amountRub: kopToRub(plan.priceKop),
-          description: paymentDescription(plan),
-          returnUrl: `https://${deps.domain}/paid`,
-          idempotenceKey: `mraz1vpn-payment-${row.id}`,
-          metadata: { payment_id: String(row.id), user_id: String(userId) },
-        });
-        if (!p.confirmation?.confirmation_url) throw new Error('ЮKassa не вернула ссылку на оплату');
-        providerId = p.id;
-        url = p.confirmation.confirmation_url;
-      } else {
+      {
         const inv = await deps.cryptobot!.createInvoice({
           amountRub: kopToRub(plan.priceKop),
           description: paymentDescription(plan),
@@ -222,22 +207,6 @@ export function createPaymentService(deps: {
       .executeTakeFirst();
   }
 
-  /** Платёж ЮKassa по данным самой ЮKassa (не из вебхука). */
-  async function handleYooPayment(p: YooPayment) {
-    const row = await findByProviderId('yookassa', p.id);
-    if (!row) return;
-    if (p.status === 'succeeded' && p.paid) {
-      const amountOk = p.amount.currency === 'RUB' && Math.round(Number(p.amount.value) * 100) === row.amount_kop;
-      if (!amountOk || p.metadata?.payment_id !== String(row.id)) {
-        log.error({ paymentId: row.id, yoo: p.id }, 'payments: сумма или метаданные ЮKassa не совпали — не продлеваю');
-        return;
-      }
-      await apply(row.id, p.captured_at ? new Date(p.captured_at) : new Date());
-    } else if (p.status === 'canceled') {
-      await markClosed(row.id, 'canceled');
-    }
-  }
-
   async function handleCryptoInvoice(inv: CryptoInvoice) {
     const row = await findByProviderId('cryptobot', String(inv.invoice_id));
     if (!row) return;
@@ -251,13 +220,6 @@ export function createPaymentService(deps: {
     } else if (inv.status === 'expired') {
       await markClosed(row.id, 'expired');
     }
-  }
-
-  /** Вебхук ЮKassa: берём из него только id и перезапрашиваем платёж. */
-  async function onYooKassaWebhook(body: unknown) {
-    const id = (body as { object?: { id?: unknown } } | null)?.object?.id;
-    if (!deps.yookassa || typeof id !== 'string' || !/^[\w-]{10,64}$/.test(id)) return;
-    await handleYooPayment(await deps.yookassa.getPayment(id));
   }
 
   /** Вебхук CryptoBot: подпись уже проверена. */
@@ -286,14 +248,6 @@ export function createPaymentService(deps: {
         log.warn({ err: (e as Error).message }, 'payments: CryptoBot недоступен');
       }
     }
-    for (const p of pending.filter((x) => x.provider === 'yookassa')) {
-      if (!deps.yookassa) break;
-      try {
-        await handleYooPayment(await deps.yookassa.getPayment(p.provider_payment_id!));
-      } catch (e) {
-        log.warn({ err: (e as Error).message, paymentId: p.id }, 'payments: ЮKassa недоступна');
-      }
-    }
     // Брошенные больше суток назад — закрываем, чтобы не опрашивать вечно.
     await dbs.system
       .updateTable('payments')
@@ -304,7 +258,7 @@ export function createPaymentService(deps: {
     return { checked: pending.length };
   }
 
-  return { catalog, create, getStatus, apply, onYooKassaWebhook, onCryptoBotWebhook, pollPending };
+  return { catalog, create, getStatus, apply, onCryptoBotWebhook, pollPending };
 }
 
 export type PaymentService = ReturnType<typeof createPaymentService>;

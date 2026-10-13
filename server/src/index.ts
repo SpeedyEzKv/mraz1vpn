@@ -9,7 +9,6 @@ import { createTopologyCache } from './vpn/topology.js';
 import { createXuiClient } from './xui/client.js';
 import { createCryptoBot } from './payments/cryptobot.js';
 import { createPaymentService } from './payments/service.js';
-import { createYooKassa } from './payments/yookassa.js';
 import { sendReminders } from './reminders.js';
 import { createReferrals } from './referrals.js';
 
@@ -49,8 +48,6 @@ const { bot, setupProfile, notifier } = createBot(config, {
 
 const paymentService = createPaymentService({
   dbs,
-  yookassa:
-    config.yookassaShopId && config.yookassaSecretKey ? createYooKassa(config.yookassaShopId, config.yookassaSecretKey, config.yookassaApiUrl) : null,
   cryptobot: config.cryptobotToken ? createCryptoBot(config.cryptobotToken, config.cryptobotTestnet, config.cryptobotApiUrl) : null,
   domain: config.domain,
   botUsername: config.botUsername,

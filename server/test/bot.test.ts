@@ -49,8 +49,7 @@ test('способы оплаты в тексте — только подклю�
   const crypto = welcomeText({ vpn: null, providers: ['cryptobot'], trialDays: 3, deviceLimit: 3 });
   assert.match(crypto, /Оплата криптовалютой, от 67 ₽ в месяц/);
   assert.doesNotMatch(crypto, /СБП/);
-  const both = welcomeText({ vpn: null, providers: ['yookassa', 'cryptobot'], trialDays: 3, deviceLimit: 3 });
-  assert.match(both, /картой и по СБП или криптовалютой/);
+  assert.doesNotMatch(crypto, /ЮKassa|картой/);
   assert.doesNotMatch(welcomeText({ vpn: null, providers: [], trialDays: 3, deviceLimit: 3 }), /Оплата/);
 });
 
@@ -147,11 +146,12 @@ test('кнопки подменю: Поддержка → новое сообщ�
 });
 
 test('тарифы: условия в тексте, каждый тариф — отдельная кнопка с ценой', () => {
-  const t = tariffsText({ providers: ['yookassa', 'cryptobot'], trialDays: 3, deviceLimit: 3 });
+  const t = tariffsText({ providers: ['cryptobot'], trialDays: 3, deviceLimit: 3 });
   assert.match(t, /Тарифы Mraz1VPN/);
   assert.match(t, /до 3 устройств одновременно/);
   assert.match(t, /3 дня бесплатно/);
-  assert.match(t, /картой и по СБП \(ЮKassa\) или криптовалютой/);
+  assert.match(t, /Оплата криптовалютой \(CryptoBot\)/);
+  assert.doesNotMatch(t, /ЮKassa/);
   assert.match(t, /не продлевается автоматически/);
   assert.doesNotMatch(tariffsText({ providers: [], trialDays: 3, deviceLimit: 3 }), /Оплата/);
   assert.match(t, /Выберите тариф/);
@@ -168,7 +168,7 @@ test('тарифы: условия в тексте, каждый тариф — 
 test('кнопка «Тарифы» и /tariffs отправляют сообщение с ценами', async () => {
   const calls: { method: string; payload: Record<string, unknown> }[] = [];
   const { bot } = createBot(cfg, {
-    providers: () => ['yookassa'],
+    providers: () => ['cryptobot'],
     botInfo: {
       id: 1, is_bot: true, first_name: 'Mraz1VPN', username: 'mraz1vpn_bot',
       can_join_groups: false, can_read_all_group_messages: false, supports_inline_queries: false,

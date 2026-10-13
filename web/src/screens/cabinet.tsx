@@ -283,7 +283,6 @@ export function HomeScreen({
 
 /* ---------- Тарифы ---------- */
 const PROVIDER_LABEL: Record<Provider, { title: string; hint: string }> = {
-  yookassa: { title: 'СБП или карта', hint: 'Оплата через ЮKassa' },
   cryptobot: { title: 'Криптовалюта', hint: 'USDT, TON и другие через @CryptoBot' },
 };
 

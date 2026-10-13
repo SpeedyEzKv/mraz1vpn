@@ -77,12 +77,9 @@ export function loadConfig() {
     referralBonusDays: int('REFERRAL_BONUS_DAYS', 7, 0, 90),
 
     // Оплата. Провайдер без ключей просто не показывается в кабинете.
-    yookassaShopId: optional('YOOKASSA_SHOP_ID', ''),
-    yookassaSecretKey: optional('YOOKASSA_SECRET_KEY', ''),
     cryptobotToken: optional('CRYPTOBOT_TOKEN', ''),
     cryptobotTestnet: optional('CRYPTOBOT_TESTNET', 'false') === 'true',
     // Только для локальной разработки: адреса имитаций API провайдеров.
-    yookassaApiUrl: optional('YOOKASSA_API_URL', 'https://api.yookassa.ru/v3'),
     cryptobotApiUrl: process.env.CRYPTOBOT_API_URL?.trim() || undefined,
     deviceLimit: int('DEVICE_LIMIT', 3, 1, 10),
   };

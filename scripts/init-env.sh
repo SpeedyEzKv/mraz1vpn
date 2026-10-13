@@ -31,8 +31,6 @@ CRYPTOBOT_TOKEN=$(ask_secret 'Токен CryptoBot (Crypto Pay → API Token), E
 printf 'Ваш Telegram-username для кнопки «Техподдержка» (без @), Enter — пропустить: ' >&2
 read -r SUPPORT_USERNAME || SUPPORT_USERNAME=''
 SUPPORT_USERNAME=$(printf '%s' "$SUPPORT_USERNAME" | tr -d '@ ')
-YOOKASSA_SHOP_ID=''
-YOOKASSA_SECRET_KEY=''
 
 # Внешний IP сервера — по нему подключаются VPN-клиенты. Сначала спрашиваем у внешнего сервиса
 # (у некоторых хостеров на сетевой карте частный адрес), иначе берём адрес с сетевой карты.
@@ -47,8 +45,6 @@ sed \
   -e "s/^BOT_TOKEN=.*/BOT_TOKEN=$(esc "$BOT_TOKEN")/" \
   -e "s/^CRYPTOBOT_TOKEN=.*/CRYPTOBOT_TOKEN=$(esc "$CRYPTOBOT_TOKEN")/" \
   -e "s/^SUPPORT_USERNAME=.*/SUPPORT_USERNAME=$(esc "$SUPPORT_USERNAME")/" \
-  -e "s/^YOOKASSA_SHOP_ID=.*/YOOKASSA_SHOP_ID=$(esc "$YOOKASSA_SHOP_ID")/" \
-  -e "s/^YOOKASSA_SECRET_KEY=.*/YOOKASSA_SECRET_KEY=$(esc "$YOOKASSA_SECRET_KEY")/" \
   -e "s/^BOT_WEBHOOK_SECRET=.*/BOT_WEBHOOK_SECRET=$(rand)/" \
   -e "s/^SESSION_SECRET=.*/SESSION_SECRET=$(rand)/" \
   -e "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(rand)/" \
